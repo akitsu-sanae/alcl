@@ -16,14 +16,13 @@ mod parse;
 mod codegen;
 
 fn main() {
-    let code = r#"
-func main argc: Int argv: List[RawString] : Int {
-    let a = 1;
-    a+2+3
-}
-"#;
+    use std::io::Read;
+    let filename = std::env::args().nth(1).expect("[filename] is required");
+    let mut f = std::fs::File::open(filename).expect("not found: inputed filename");
+    let mut input = String::new();
+    f.read_to_string(&mut input).expect("can not read input file");
 
-    let mut parser = parse::Parser::new(code);
+    let mut parser = parse::Parser::new(input.as_str());
     let ast = parser.program();
     let mut codegen = codegen::CodeGen::new();
     println!("{}", codegen.program(&ast));
