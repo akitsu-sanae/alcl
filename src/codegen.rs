@@ -68,10 +68,14 @@ impl CodeGen {
         let mut arg_to_string =
             |arg: &(String, Type)| format!("{} %{}", self.type_(&arg.1), arg.0);
 
-        args[1..].iter().fold(
-            arg_to_string(&args[0]),
-            |acc, arg| format!("{}, {}", acc, arg_to_string(&arg))
-        )
+        if args.is_empty() {
+            "".to_string()
+        } else {
+            args[1..].iter().fold(
+                arg_to_string(&args[0]),
+                |acc, arg| format!("{}, {}", acc, arg_to_string(&arg))
+            )
+        }
     }
 
     pub fn expression(&mut self, e: &Expr) -> String {
