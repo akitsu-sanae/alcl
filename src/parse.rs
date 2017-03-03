@@ -271,6 +271,8 @@ impl<'a> Scanner<'a> {
             Ok(char_to_token.get(&c).unwrap().clone())
         } else if let Some((n, _)) = get_number(buff) {
             Ok(Token::Number(n))
+        } else if let Some((str, _)) = get_string(self.buff) {
+            Ok(Token::String(str))
         } else if let Some((id, _)) = get_identifier(buff) {
             if let Some(token) = str_to_token.get(&id) {
                 Ok(token.clone())
