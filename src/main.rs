@@ -13,6 +13,7 @@ mod function;
 mod type_;
 mod program;
 mod parse;
+mod type_check;
 mod codegen;
 
 fn main() {
@@ -23,7 +24,8 @@ fn main() {
     f.read_to_string(&mut input).expect("can not read input file");
 
     let mut parser = parse::Parser::new(input.as_str());
-    let ast = parser.program();
+    let mut ast = parser.program();
+    type_check::type_check(&mut ast);
     let mut codegen = codegen::CodeGen::new();
     println!("{}", codegen.program(&ast));
 }

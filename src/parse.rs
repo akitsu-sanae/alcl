@@ -6,6 +6,7 @@
 ============================================================================*/
 
 use expr::Expr;
+use expr::Info;
 use function::Function;
 use type_::Type;
 use program::Program;
@@ -383,7 +384,7 @@ impl<'a> Parser<'a> {
             let init = self.if_expr();
             self.scanner.expect(Token::Semicolon);
             let body = self.expression();
-            Expr::Let(name, box init, box body)
+            Expr::Let(name, box init, box body, Info::new())
         } else {
             self.sequence_expr()
         }
@@ -393,7 +394,7 @@ impl<'a> Parser<'a> {
         let expr = self.if_expr();
         if self.scanner.peek().unwrap() == Token::Semicolon {
             self.scanner.expect(Token::Semicolon);
-            Expr::Sequence(box expr, box self.sequence_expr())
+            Expr::Sequence(box expr, box self.sequence_expr(), Info::new())
         } else {
             expr
         }
@@ -418,7 +419,7 @@ impl<'a> Parser<'a> {
                     let body = self.expression();
                     self.scanner.expect(Token::RightBrace);
                     self.scanner.expect(Token::Else);
-                    else_if.push((box cond, box body));
+                    else_if.push((cond, body));
                 } else {
                     break;
                 }
@@ -426,7 +427,7 @@ impl<'a> Parser<'a> {
             self.scanner.expect(Token::LeftBrace);
             let fl = self.expression();
             self.scanner.expect(Token::RightBrace);
-            Expr::If(box cond, box tr, else_if, box fl)
+            Expr::If(box cond, box tr, else_if, box fl, Info::new())
         } else {
             self.for_expr()
         }
@@ -444,7 +445,7 @@ impl<'a> Parser<'a> {
             self.scanner.expect(Token::LeftBrace);
             let body = self.expression();
             self.scanner.expect(Token::RightBrace);
-            Expr::For(name, box start, box last, box body)
+            Expr::For(name, box start, box last, box body, Info::new())
         } else {
             self.equal_expr()
         }
@@ -457,11 +458,11 @@ impl<'a> Parser<'a> {
             match token {
                 Token::EqualEqual => {
                     self.scanner.expect(Token::EqualEqual);
-                    acc = Expr::Equal(box acc, box self.add_expr())
+                    acc = Expr::Equal(box acc, box self.add_expr(), Info::new())
                 },
                 Token::NotEqual => {
                     self.scanner.expect(Token::NotEqual);
-                    acc = Expr::NotEqual(box acc, box self.add_expr())
+                    acc = Expr::NotEqual(box acc, box self.add_expr(), Info::new())
                 },
                 _ => break
             }
@@ -476,11 +477,11 @@ impl<'a> Parser<'a> {
             match token {
                 Token::Plus => {
                     self.scanner.expect(Token::Plus);
-                    acc = Expr::Add(box acc, box self.mult_expr())
+                    acc = Expr::Add(box acc, box self.mult_expr(), Info::new())
                 },
                 Token::Minus => {
                     self.scanner.expect(Token::Minus);
-                    acc = Expr::Sub(box acc, box self.mult_expr())
+                    acc = Expr::Sub(box acc, box self.mult_expr(), Info::new())
                 },
                 _ => break
             }
@@ -495,15 +496,15 @@ impl<'a> Parser<'a> {
             match token {
                 Token::Ast => {
                     self.scanner.expect(Token::Ast);
-                    acc = Expr::Mult(box acc, box self.apply_expr())
+                    acc = Expr::Mult(box acc, box self.apply_expr(), Info::new())
                 },
                 Token::Slash => {
                     self.scanner.expect(Token::Slash);
-                    acc = Expr::Div(box acc, box self.apply_expr())
+                    acc = Expr::Div(box acc, box self.apply_expr(), Info::new())
                 },
                 Token::Percent => {
                     self.scanner.expect(Token::Percent);
-                    acc = Expr::Surplus(box acc, box self.apply_expr())
+                    acc = Expr::Surplus(box acc, box self.apply_expr(), Info::new())
                 }
                 _ => break
             }
@@ -516,7 +517,7 @@ impl<'a> Parser<'a> {
         loop {
             if self.scanner.peek().unwrap() == Token::At {
                 self.scanner.expect(Token::At);
-                acc = Expr::Apply(box acc, box self.dot_expr())
+                acc = Expr::Apply(box acc, box self.dot_expr(), Info::new())
             } else {
                 break;
             }
@@ -529,7 +530,7 @@ impl<'a> Parser<'a> {
         loop {
             if self.scanner.peek().unwrap() == Token::Dot {
                 self.scanner.expect(Token::Dot);
-                acc = Expr::Dot(box acc, box self.primary_expr())
+                acc = Expr::Dot(box acc, box self.primary_expr(), Info::new())
             } else {
                 break;
             }
@@ -540,11 +541,11 @@ impl<'a> Parser<'a> {
     fn primary_expr(&mut self) -> Expr {
         let token = self.scanner.next().unwrap();
         if token.is_number() {
-            Expr::Number(token.as_number().unwrap())
+            Expr::Number(token.as_number().unwrap(), Info::new())
         } else if token.is_identifier() {
-            Expr::Identifier(token.as_identifier().unwrap())
+            Expr::Identifier(token.as_identifier().unwrap(), Info::new())
         } else if token.is_string() {
-            Expr::String(token.as_string().unwrap())
+            Expr::String(token.as_string().unwrap(), Info::new())
         } else if token == Token::LeftParen {
             let expr = self.expression();
             self.scanner.expect(Token::RightParen);

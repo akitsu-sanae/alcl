@@ -85,7 +85,7 @@ impl CodeGen {
     pub fn expression(&mut self, e: &Expr) -> String {
         use expr::Expr::*;
         match *e {
-            Let(ref id, box ref init, box ref body) => {
+            Let(ref id, box ref init, box ref body, _) => {
                 let (before, init) = if init.is_literal() {
                     ("".to_string(), self.expression(init))
                 } else {
@@ -95,11 +95,11 @@ impl CodeGen {
                 format!("{}  %{} = alloca i32, align 4\n  store i32 {}, i32* %{}, align 4\n{}",
                         before, id, init, id, after)
             },
-            Sequence(box ref e1, box ref e2) => {
+            Sequence(box ref e1, box ref e2, _) => {
                 format!("{}{}", self.expression(e1), self.expression(e2))
             },
-            Add(box ref lhs, box ref rhs) | Sub(box ref lhs, box ref rhs) |
-            Mult(box ref lhs, box ref rhs) | Div(box ref lhs, box ref rhs) => {
+            Add(box ref lhs, box ref rhs, _) | Sub(box ref lhs, box ref rhs, _) |
+            Mult(box ref lhs, box ref rhs, _) | Div(box ref lhs, box ref rhs, _) => {
                 let (before, lhs, rhs) = if lhs.is_literal() && rhs.is_literal() {
                     ("".to_string(), self.expression(lhs), self.expression(rhs))
                 } else if lhs.is_literal() && !rhs.is_literal() {
@@ -116,13 +116,13 @@ impl CodeGen {
                 self.variable_counter += 1;
                 format!("{}  %{} = {} i32 {}, {}\n", before, self.variable_counter, e.operand(), lhs, rhs)
             },
-            Number(ref n) => n.to_string(),
-            String(ref str) => {
+            Number(ref n, _) => n.to_string(),
+            String(ref str, _) => {
                 self.n_string_literals += 1;
                 self.global_declares += format!("@.str.{} = private unnamed_addr constant [{} x i8] c\"{}\\00\", align 1\n",self.n_string_literals, str.len()+1, str).as_str();
                 format!("@.str.{}", self.n_string_literals)
             },
-            Identifier(ref name) => {
+            Identifier(ref name, _) => {
                 self.variable_counter += 1;
                 format!("  %{} = load i32, i32* %{}, align 4\n", self.variable_counter, name)
             },

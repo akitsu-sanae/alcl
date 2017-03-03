@@ -12,3 +12,33 @@ pub enum Type {
     Generic(String, Box<Type>)
 }
 
+impl Type {
+    pub fn integer() -> Self {
+        Type::Primitive("Int".to_string())
+    }
+
+    pub fn boolean() -> Self {
+        Type::Primitive("Bool".to_string())
+    }
+
+    pub fn align(&self) -> usize {
+        use type_::Type::*;
+        match *self {
+            Primitive(ref name) => {
+                match name.as_str() {
+                    "Int" => 4,
+                    "Char" => 1,
+                    _ => 42, // TODO
+                }
+            },
+            Generic(ref name, _) => {
+                match name.as_str() {
+                    "List" | "Array" => 8,
+                    _ => 42 // TODO
+                }
+            }
+            _ => 42 // TODO
+        }
+    }
+}
+

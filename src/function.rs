@@ -16,3 +16,9 @@ pub struct Function {
     pub body: Expr
 }
 
+impl Function {
+    pub fn type_(&self) -> Type {
+        Type::Function(box self.return_type.clone(), self.args.iter().map(|arg| arg.1.clone()).collect())
+    }
+}
+
