@@ -94,7 +94,8 @@ impl CodeGen {
             Sequence(box ref e1, box ref e2) => {
                 format!("{}{}", self.expression(e1), self.expression(e2))
             },
-            Add(box ref lhs, box ref rhs) => {
+            Add(box ref lhs, box ref rhs) | Sub(box ref lhs, box ref rhs) |
+            Mult(box ref lhs, box ref rhs) | Div(box ref lhs, box ref rhs) => {
                 let (before, lhs, rhs) = if lhs.is_literal() && rhs.is_literal() {
                     ("".to_string(), self.expression(lhs), self.expression(rhs))
                 } else if lhs.is_literal() && !rhs.is_literal() {
@@ -109,7 +110,7 @@ impl CodeGen {
                     (before, format!("%{}", lhs), format!("%{}", rhs))
                 };
                 self.variable_counter += 1;
-                format!("{}  %{} = add i32 {}, {}\n", before, self.variable_counter, lhs, rhs)
+                format!("{}  %{} = {} i32 {}, {}\n", before, self.variable_counter, e.operand(), lhs, rhs)
             },
             Number(ref n) => n.to_string(),
             Identifier(ref name) => {
