@@ -119,8 +119,8 @@ impl CodeGen {
             Number(ref n) => n.to_string(),
             String(ref str) => {
                 self.n_string_literals += 1;
-                self.global_declares += format!("@{}.str = private unnamed_addr constant [{} x i8] c\"{}\\00\", align 1\n",self.n_string_literals, str.len()+1, str).as_str();
-                format!("@{}.str", self.n_string_literals)
+                self.global_declares += format!("@.str.{} = private unnamed_addr constant [{} x i8] c\"{}\\00\", align 1\n",self.n_string_literals, str.len()+1, str).as_str();
+                format!("@.str.{}", self.n_string_literals)
             },
             Identifier(ref name) => {
                 self.variable_counter += 1;
