@@ -6,37 +6,25 @@
 ============================================================================*/
 
 #![feature(box_syntax)]
+#![feature(box_patterns)]
 
 mod expr;
 mod function;
 mod type_;
 mod program;
 mod parse;
+mod codegen;
 
 fn main() {
-    let mut parser = parse::Parser::new("5+(1+2)*3");
-    println!("{:?}", parser.expression());
-
     let code = r#"
-func fizzbuzz n : Int -> Unit {
-    for i in 1 .. n {
-        if i%15 == 0 {
-            std.io.printf @ "FizzBuzz"
-        } else if i%3 == 0 {
-            std.io.printf @ "Fizz"
-        } else if i%5 == 0 {
-            std.io.printf @ "Buzz"
-        } else {
-            std.io.printf@(n.to_string)
-        }
-    }
+func main argc: Int argv: List[RawString] : Int {
+    let a = 1;
+    a+2+3
 }
+"#;
 
-func main _ : List[String] -> Unit {
-    fizzbuzz@12
-}
-        "#;
-    // let mut parser = parse::Parser::new("func hoge _ : int -> int { let x = 1; for i in x .. 10 { i }  }");
     let mut parser = parse::Parser::new(code);
-    println!("{:?}", parser.program());
+    let ast = parser.program();
+    let mut codegen = codegen::CodeGen::new();
+    println!("{}", codegen.program(&ast));
 }

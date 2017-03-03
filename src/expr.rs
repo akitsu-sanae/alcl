@@ -25,5 +25,14 @@ pub enum Expr {
     Identifier(String)
 }
 
+impl Expr {
+    pub fn is_literal(&self) -> bool {
+        use expr::Expr::*;
+        match *self {
+            Number(_) | String(_) => true,
+            _ => false
 
+        }
+    }
+}
 

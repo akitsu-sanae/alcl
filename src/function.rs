@@ -10,21 +10,9 @@ use type_::Type;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Function {
-    name: String,
-    args: Vec<String>,
-    type_: Type,
-    body: Expr
+    pub name: String,
+    pub args: Vec<(String, Type)>,
+    pub return_type: Type,
+    pub body: Expr
 }
-
-impl Function {
-    pub fn new(name: String, args: Vec<String>, ty: Type, e: Expr) -> Self {
-        Function {
-            name : name,
-            args: args,
-            type_: ty,
-            body: e
-        }
-    }
-}
-
 

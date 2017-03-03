@@ -309,26 +309,35 @@ impl<'a> Parser<'a> {
     }
 
     pub fn type_(&mut self) -> Type {
+        let mut arg_types = vec![];
+        arg_types.push(self.primitive_type());
+        while self.scanner.peek().unwrap() == Token::Arrow {
+            self.scanner.expect(Token::Arrow);
+            arg_types.push(self.primitive_type());
+        }
+
+        if arg_types.len() == 1 {
+            arg_types.pop().unwrap()
+        } else {
+            let ret_type = arg_types.pop().unwrap();
+            Type::Function(box ret_type, arg_types)
+        }
+    }
+
+    pub fn primitive_type(&mut self) -> Type {
         let name = self.scanner.next().unwrap().as_identifier().unwrap();
 
-        let ty = if self.scanner.peek().unwrap() == Token::LeftBracket {
+        if self.scanner.peek().unwrap() == Token::LeftBracket {
             self.scanner.expect(Token::LeftBracket);
             let t = self.type_();
             self.scanner.expect(Token::RightBracket);
             Type::Generic(name, box t)
         } else {
             Type::Primitive(name)
-        };
-
-        if self.scanner.peek().unwrap() == Token::Arrow {
-            self.scanner.expect(Token::Arrow);
-            Type::Function(box ty, box self.type_())
-        } else {
-            ty
         }
     }
 
-    // func hoge a b : type {
+    // func hoge a: type b: type {
     //   expression
     // }
     pub fn function(&mut self)  -> Function {
@@ -337,17 +346,25 @@ impl<'a> Parser<'a> {
         let mut args = vec![];
         loop {
             if self.scanner.peek().unwrap().is_identifier() {
-                args.push(self.scanner.next().unwrap().as_identifier().unwrap());
+                let name = self.scanner.next().unwrap().as_identifier().unwrap();
+                self.scanner.expect(Token::Colon);
+                let ty = self.type_();
+                args.push((name, ty));
             } else {
                 break;
             }
         }
         self.scanner.expect(Token::Colon);
-        let ty = self.type_();
+        let ret_type = self.type_();
         self.scanner.expect(Token::LeftBrace);
         let expr = self.expression();
         self.scanner.expect(Token::RightBrace);
-        Function::new(name, args, ty, expr)
+        Function {
+            name: name,
+            args: args,
+            return_type: ret_type,
+            body: expr
+        }
     }
 
     pub fn expression(&mut self) -> Expr {

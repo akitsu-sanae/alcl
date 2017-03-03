@@ -8,7 +8,7 @@
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Type {
     Primitive(String),
-    Function(Box<Type>, Box<Type>),
+    Function(Box<Type>, Vec<Type>),
     Generic(String, Box<Type>)
 }
 
