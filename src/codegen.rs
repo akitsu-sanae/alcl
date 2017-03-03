@@ -12,12 +12,16 @@ use program::Program;
 
 pub struct CodeGen {
     variable_counter: i32,
+    global_declares : String,
+    n_string_literals: i32,
 }
 
 impl CodeGen {
     pub fn new() -> Self {
         CodeGen {
-            variable_counter: 0
+            variable_counter: 0,
+            global_declares: String::new(),
+            n_string_literals: 0
         }
     }
 
@@ -26,7 +30,7 @@ impl CodeGen {
         for ref func in &program.functions {
             result += self.function(&func).as_str();
         }
-        result
+        format!("{}{}", self.global_declares, result)
     }
 
     pub fn function(&mut self, func: &Function) -> String {
@@ -113,6 +117,11 @@ impl CodeGen {
                 format!("{}  %{} = {} i32 {}, {}\n", before, self.variable_counter, e.operand(), lhs, rhs)
             },
             Number(ref n) => n.to_string(),
+            String(ref str) => {
+                self.n_string_literals += 1;
+                self.global_declares += format!("@{}.str = private unnamed_addr constant [{} x i8] c\"{}\\00\", align 1\n",self.n_string_literals, str.len()+1, str).as_str();
+                format!("@{}.str", self.n_string_literals)
+            },
             Identifier(ref name) => {
                 self.variable_counter += 1;
                 format!("  %{} = load i32, i32* %{}, align 4\n", self.variable_counter, name)
