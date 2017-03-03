@@ -39,6 +39,11 @@ impl CodeGen {
             func.name,
             self.parameters(&func.args)
         );
+        for (i, args) in func.args.iter().enumerate() {
+            let (ty, align) = (self.type_(&args.1), args.1.align());
+            result += format!("  %{} = alloca {}, align {}\n", args.0, ty, align).as_str();
+            result += format!("  store {} %.arg{}, {}* %{}, align {}\n", ty, i, ty, args.0, align).as_str();
+        }
         self.variable_counter = 0;
         result += self.expression(&func.body).as_str();
         result += format!("  ret i32 %{}\n", self.variable_counter).as_str();
@@ -69,15 +74,12 @@ impl CodeGen {
     }
 
     pub fn parameters(&mut self, args: &Vec<(String, Type)>) -> String {
-        let mut arg_to_string =
-            |arg: &(String, Type)| format!("{} %{}", self.type_(&arg.1), arg.0);
-
         if args.is_empty() {
             "".to_string()
         } else {
-            args[1..].iter().fold(
-                arg_to_string(&args[0]),
-                |acc, arg| format!("{}, {}", acc, arg_to_string(&arg))
+            args[1..].iter().enumerate().fold(
+                format!("{} %.arg0", self.type_(&args[0].1)),
+                |acc, (i, arg)| format!("{}, {} %.arg{}", acc, self.type_(&arg.1), i+1)
             )
         }
     }
