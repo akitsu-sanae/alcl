@@ -21,6 +21,14 @@ impl Type {
         Type::Primitive("Bool".to_string())
     }
 
+    pub fn string() -> Self {
+        Type::Primitive("String".to_string())
+    }
+
+    pub fn unit() -> Self {
+        Type::Primitive("Unit".to_string())
+    }
+
     pub fn align(&self) -> usize {
         use type_::Type::*;
         match *self {
@@ -28,6 +36,7 @@ impl Type {
                 match name.as_str() {
                     "Int" => 4,
                     "Char" => 1,
+                    "String" => 8,
                     _ => 42, // TODO
                 }
             },

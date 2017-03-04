@@ -61,5 +61,23 @@ impl Expr {
             _ => panic!("this expression has no operand: {:?}", self),
         }
     }
+
+    pub fn type_(&self) -> Option<Type> {
+        use expr::Expr::*;
+        match *self {
+            Let(_, _, _, ref info) |
+            Sequence(_, _, ref info) |
+            If(_, _, _, _, ref info) |
+            For(_, _, _, _, ref info) |
+            Equal(_, _, ref info) | NotEqual(_, _, ref info) |
+            Add(_, _, ref info) | Sub(_, _, ref info) |
+            Surplus(_, _, ref info) | Mult(_, _, ref info) | Div(_, _, ref info) |
+            Apply(_, _, ref info) |
+            Dot(_, _, ref info) |
+            Println(_, ref info) |
+            Number(_, ref info) | String(_, ref info) |
+            Identifier(_, ref info) => info.type_.clone()
+        }
+    }
 }
 

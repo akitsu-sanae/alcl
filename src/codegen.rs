@@ -10,18 +10,21 @@ use function::Function;
 use type_::Type;
 use program::Program;
 
+use std::collections::HashMap;
+
 pub struct CodeGen {
     variable_counter: i32,
-    global_declares : String,
-    n_string_literals: i32,
+    //                         name   ret_type arg_type
+    global_declares : HashMap<String, (String, String)>,
+    string_literals: Vec<String>
 }
 
 impl CodeGen {
     pub fn new() -> Self {
         CodeGen {
             variable_counter: 0,
-            global_declares: String::new(),
-            n_string_literals: 0
+            global_declares: HashMap::new(),
+            string_literals: vec![]
         }
     }
 
@@ -30,7 +33,15 @@ impl CodeGen {
         for ref func in &program.functions {
             result += self.function(&func).as_str();
         }
-        format!("{}{}", self.global_declares, result)
+        for ref declare in &self.global_declares {
+            let ref ty = declare.1;
+            let (name, ret_ty, arg_ty) = (&declare.0, &ty.0, &ty.1);
+            result += format!("declare {} @{}({})\n", ret_ty, name, arg_ty).as_str();
+        }
+        for (i, str) in self.string_literals.iter().enumerate() {
+            result += format!("@.str.{} = private unnamed_addr constant [{} x i8] c\"{}\\00\", align 1\n", i, str.len()+1, str).as_str();
+        }
+        result
     }
 
     pub fn function(&mut self, func: &Function) -> String {
@@ -47,7 +58,7 @@ impl CodeGen {
         self.variable_counter = 0;
         result += self.expression(&func.body).as_str();
         result += format!("  ret i32 %{}\n", self.variable_counter).as_str();
-        result += "}";
+        result += "}\n";
         result
     }
 
@@ -57,7 +68,7 @@ impl CodeGen {
                 match name.as_str() {
                     "Int" => "i32".to_string(),
                     "Unit" => "void".to_string(),
-                    "RawString" => "i8*".to_string(),
+                    "RawString" | "String" => "i8*".to_string(),
                     _ => "<unimplemented primitive type>".to_string() // TODO
                 }
             },
@@ -88,14 +99,17 @@ impl CodeGen {
         use expr::Expr::*;
         match *e {
             Let(ref id, box ref init, box ref body, _) => {
+                let init_ty = init.type_().unwrap();
                 let (before, init) = if init.is_literal() {
                     ("".to_string(), self.expression(init))
                 } else {
                     (self.expression(init), format!("%{}", self.variable_counter))
                 };
+                let (init_ty, align) = (self.type_(&init_ty), init_ty.align());
                 let after = self.expression(body);
-                format!("{}  %{} = alloca i32, align 4\n  store i32 {}, i32* %{}, align 4\n{}",
-                        before, id, init, id, after)
+                format!("{}  %{} = alloca {}, align {}\n  store {} {}, {}* %{}, align {}\n{}",
+                        before, id, init_ty, align,
+                        init_ty, init, init_ty, id, align, after)
             },
             Sequence(box ref e1, box ref e2, _) => {
                 format!("{}{}", self.expression(e1), self.expression(e2))
@@ -118,15 +132,29 @@ impl CodeGen {
                 self.variable_counter += 1;
                 format!("{}  %{} = {} i32 {}, {}\n", before, self.variable_counter, e.operand(), lhs, rhs)
             },
+            Println(box ref expr, _) => {
+                self.global_declares.insert("puts".to_string(), ("i32".to_string(), "i8*".to_string()));
+                if expr.is_literal() {
+                    let var = self.expression(expr);
+                    self.variable_counter += 1;
+                    format!("  %{} = call i32 @puts(i8* {})\n", self.variable_counter, var)
+                } else {
+                    let before = self.expression(expr);
+                    let var = self.variable_counter;
+                    self.variable_counter += 1;
+                    format!("{}  %{} = call i32 @puts(i8* %{})\n", before, self.variable_counter, var)
+                }
+            },
             Number(ref n, _) => n.to_string(),
             String(ref str, _) => {
-                self.n_string_literals += 1;
-                self.global_declares += format!("@.str.{} = private unnamed_addr constant [{} x i8] c\"{}\\00\", align 1\n",self.n_string_literals, str.len()+1, str).as_str();
-                format!("@.str.{}", self.n_string_literals)
+                self.string_literals.push(str.clone());
+                format!("getelementptr inbounds ([{} x i8], [{} x i8]* @.str.{}, i32 0, i32 0)", str.len()+1, str.len()+1, self.string_literals.len()-1)
             },
-            Identifier(ref name, _) => {
+            Identifier(ref name, ref info) => {
                 self.variable_counter += 1;
-                format!("  %{} = load i32, i32* %{}, align 4\n", self.variable_counter, name)
+                let ty = info.clone().type_.unwrap();
+                let (ty, align) = (self.type_(&ty), ty.align());
+                format!("  %{} = load {}, {}* %{}, align {}\n", self.variable_counter, ty, ty, name, align)
             },
             _ => "<unimplemented expr>".to_string() // TODO
         }
