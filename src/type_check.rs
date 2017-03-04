@@ -84,10 +84,22 @@ fn type_check_impl(expr: &mut Expr, env: &Env) -> Result<Type, String> {
                 Ok(lhs)
             }
         },
+        Println(box ref mut expr, ref mut info) => {
+            if try!(type_check_impl(expr, env)) != Type::string() {
+                Err("println expr accepts only string expr".to_string())
+            } else {
+                info.type_ = Some(Type::unit());
+                Ok(Type::unit())
+            }
+        }
         Number(_, ref mut info) => {
             info.type_ = Some(Type::integer());
             Ok(Type::integer())
         },
+        String(_, ref mut info) => {
+            info.type_ = Some(Type::string());
+            Ok(Type::string())
+        }
         Identifier(ref name, ref mut info) => {
             if let Some(ty) = lookup(env, name) {
                 info.type_ = Some(ty.clone());

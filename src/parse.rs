@@ -45,6 +45,7 @@ enum Token {
     Else,
     For,
     In,
+    Println,
 
     Number(i64),
     String(String),
@@ -173,6 +174,7 @@ fn str_to_token() -> HashMap<String, Token> {
     result.insert("else".to_string(), Token::Else);
     result.insert("for".to_string(), Token::For);
     result.insert("in".to_string(), Token::In);
+    result.insert("println".to_string(), Token::Println);
     result
 }
 
@@ -446,6 +448,16 @@ impl<'a> Parser<'a> {
             let body = self.expression();
             self.scanner.expect(Token::RightBrace);
             Expr::For(name, box start, box last, box body, Info::new())
+        } else {
+            self.println_expr()
+        }
+    }
+
+    // println equal_expr
+    fn println_expr(&mut self) -> Expr {
+        if self.scanner.peek().unwrap() == Token::Println {
+            self.scanner.expect(Token::Println);
+            Expr::Println(box self.equal_expr(), Info::new())
         } else {
             self.equal_expr()
         }
