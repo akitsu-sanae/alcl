@@ -237,7 +237,7 @@ impl<'a> Scanner<'a> {
     pub fn expect(&mut self, token: Token) {
         let got = self.next().unwrap();
         if got != token {
-            panic!("parsing error: {:?} was expected, but {:?} comming", got, token);
+            panic!("parsing error: {:?} was expected, but {:?} comming", token, got);
         }
 
     }
