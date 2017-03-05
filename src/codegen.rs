@@ -57,7 +57,12 @@ impl CodeGen {
         }
         self.variable_counter = 0;
         result += self.expression(&func.body).as_str();
-        result += format!("  ret i32 %{}\n", self.variable_counter).as_str();
+        let ty = self.type_(&func.body.type_().unwrap());
+        if ty != "void" {
+            result += format!("  ret {} %{}\n", ty, self.variable_counter).as_str();
+        } else {
+            result += "  ret void\n";
+        }
         result += "}\n";
         result
     }
