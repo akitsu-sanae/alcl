@@ -113,7 +113,21 @@ impl CodeGen {
                         init_ty, init, init_ty, id, align, after)
             },
             Sequence(box ref e1, box ref e2, _) => {
-                format!("{}{}", self.expression(e1), self.expression(e2))
+                let mut expr_to_string = |e: &Expr| {
+                    let ty = e.type_().unwrap();
+                    let (ty, align) = (self.type_(&ty), ty.align());
+                    if e.is_literal() {
+                        let e = self.expression(e);
+                        self.variable_counter += 2;
+                        format!("  %{} = alloca {}, align {}\n  store {} {}, {}* %{}, align {}\n  %{} = load {}, {}* %{}, align {}\n",
+                                self.variable_counter - 1, ty, align,
+                                ty, e, ty, self.variable_counter - 1, align,
+                                self.variable_counter, ty, ty, self.variable_counter-1, align)
+                    } else {
+                        self.expression(e)
+                    }
+                };
+                format!("{}{}", expr_to_string(e1), expr_to_string(e2))
             },
             If(box ref cond, box ref tr, ref else_ifs, box ref fl, _) => {
                 let mut result = "".to_string();
