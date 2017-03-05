@@ -115,6 +115,51 @@ impl CodeGen {
             Sequence(box ref e1, box ref e2, _) => {
                 format!("{}{}", self.expression(e1), self.expression(e2))
             },
+            If(box ref cond, box ref tr, ref else_ifs, box ref fl, _) => {
+                let mut result = "".to_string();
+                result += self.expression(cond).as_str();
+                if else_ifs.len() == 0 {
+                    result += format!("  br i1 %{}, label %.if.then, label %.if.else\n", self.variable_counter).as_str();
+                    result += "\n";
+                    result += ".if.then:\n";
+                    result += self.expression(tr).as_str();
+                    result += "  br label %.if.end\n";
+                    result += "\n";
+                    result += ".if.else:\n";
+                    result += self.expression(fl).as_str();
+                    result += "  br label %.if.end\n";
+                    result += "\n";
+                    result += ".if.end:\n";
+                } else {
+                    result += format!("  br i1 %{}, label %.if.then, label %.if.else_if.0.cond\n", self.variable_counter).as_str();
+                    result += "\n";
+                    result += ".if.then:\n";
+                    result += self.expression(tr).as_str();
+                    result += "  br label %.if.end\n";
+                    result += "\n";
+                    for (i, else_if) in else_ifs.iter().enumerate() {
+                        result += format!(".if.else_if.{}.cond:\n", i).as_str();
+                        result += self.expression(&else_if.0).as_str();
+                        let after = if i + 1 == else_ifs.len() {
+                            ".if.else".to_string()
+                        } else {
+                            format!(".if.else_if.{}.cond", i+1)
+                        };
+                        result += format!("  br i1 %{}, label %.if.else_if.{}.body, label %{}\n", self.variable_counter, i, after).as_str();
+                        result += "\n";
+                        result += format!(".if.else_if.{}.body:\n", i).as_str();
+                        result += self.expression(&else_if.1).as_str();
+                        result += "  br label %.if.end\n";
+                        result += "\n";
+                    }
+                    result += ".if.else:\n";
+                    result += self.expression(fl).as_str();
+                    result += "  br label %.if.end\n";
+                    result += "\n";
+                    result += ".if.end:\n";
+                }
+                result
+            },
             For(ref name, box ref from, box ref to, box ref expr, _) => {
                 let mut result = "".to_string();
                 result += format!("  %{} = alloca i32, align 4\n", name).as_str();
