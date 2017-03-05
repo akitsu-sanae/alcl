@@ -19,7 +19,10 @@ pub fn type_check(program: &mut Program) {
 
     for ref mut func in &mut program.functions {
         env.append(&mut func.args.clone());
-        type_check_impl(&mut func.body, &env).unwrap();
+        let ret_ty = type_check_impl(&mut func.body, &env).unwrap();
+        if ret_ty != func.return_type {
+            panic!("type error: not match return type: {:?} and {:?}", func.return_type, ret_ty);
+        }
     }
 }
 
