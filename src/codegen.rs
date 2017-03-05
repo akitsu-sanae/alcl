@@ -114,6 +114,32 @@ impl CodeGen {
             Sequence(box ref e1, box ref e2, _) => {
                 format!("{}{}", self.expression(e1), self.expression(e2))
             },
+            For(ref name, box ref from, box ref to, box ref expr, _) => {
+                let mut result = "".to_string();
+                result += format!("  %{} = alloca i32, align 4\n", name).as_str();
+                result += format!("  store i32 {}, i32* %{}, align 4\n", self.expression(from), name).as_str();
+                result += "  br label %.for_cond\n";
+                result += "\n";
+                result += ".for_cond:\n";
+                self.variable_counter += 1;
+                result += format!("  %{} = load i32, i32* %{}, align 4\n", self.variable_counter, name).as_str();
+                self.variable_counter += 1;
+                let to = self.expression(to);
+                result += format!("  %{} = icmp sle i32 %{}, {}\n", self.variable_counter, self.variable_counter-1, to).as_str();
+                result += format!("  br i1 %{}, label %.for_body, label %.for_end\n", self.variable_counter).as_str();
+                result += "\n";
+                result += ".for_body:\n";
+                result += self.expression(expr).as_str();
+                self.variable_counter += 1;
+                result += format!("  %{} = load i32, i32* %i, align 4\n", self.variable_counter).as_str();
+                self.variable_counter += 1;
+                result += format!("  %{} = add i32 %{}, 1", self.variable_counter, self.variable_counter-1).as_str();
+                result += format!("  store i32 %{}, i32* %{}, align 4", self.variable_counter, name).as_str();
+                result += "br label %.for_cond\n";
+                result += "\n";
+                result += ".for_end:\n";
+                result
+            },
             Add(box ref lhs, box ref rhs, _) | Sub(box ref lhs, box ref rhs, _) |
             Mult(box ref lhs, box ref rhs, _) | Div(box ref lhs, box ref rhs, _) => {
                 let (before, lhs, rhs) = if lhs.is_literal() && rhs.is_literal() {

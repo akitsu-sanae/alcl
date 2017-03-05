@@ -60,7 +60,19 @@ fn type_check_impl(expr: &mut Expr, env: &Env) -> Result<Type, String> {
             }
             info.type_ = Some(ret_ty.clone());
             Ok(ret_ty)
-        }
+        },
+        For(ref mut index, box ref mut from, box ref mut to, box ref mut body, ref mut info) => {
+            let from_ty = try!(type_check_impl(from, env));
+            let to_ty = try!(type_check_impl(to, env));
+            if from_ty != to_ty {
+                return Err("type error in for expression: from expr and to expr must have same type ".to_string());
+            }
+            let mut env = env.clone();
+            env.push((index.clone(), from_ty));
+            try!(type_check_impl(body, &env));
+            info.type_ = Some(Type::unit());
+            Ok(Type::unit())
+        },
         Equal(box ref mut lhs, box ref mut rhs, ref mut info) |
         NotEqual(box ref mut lhs, box ref mut rhs, ref mut info) => {
             let lhs = try!(type_check_impl(lhs, env));
