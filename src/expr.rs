@@ -54,10 +54,13 @@ impl Expr {
     pub fn operand(&self) -> String {
         use expr::Expr::*;
         match *self {
+            Equal(_, _, _) => "icmp eq".to_string(),
+            NotEqual(_, _, _) => "icmp ne".to_string(),
             Add(_, _, _) => "add".to_string(),
             Sub(_, _, _) => "sub".to_string(),
             Mult(_, _, _) => "mul".to_string(),
             Div(_, _, _) => "sdiv".to_string(),
+            Surplus(_, _, _) => "srem".to_string(),
             _ => panic!("this expression has no operand: {:?}", self),
         }
     }

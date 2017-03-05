@@ -80,8 +80,8 @@ fn type_check_impl(expr: &mut Expr, env: &Env) -> Result<Type, String> {
             if lhs != rhs {
                 Err("lhs and rhs must have same type".to_string())
             } else {
-                info.type_ = Some(lhs.clone());
-                Ok(lhs)
+                info.type_ = Some(Type::boolean());
+                Ok(Type::boolean())
             }
         },
         Add(box ref mut lhs, box ref mut rhs, ref mut info) | Sub(box ref mut lhs, box ref mut rhs, ref mut info) |

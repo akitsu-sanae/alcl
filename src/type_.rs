@@ -34,6 +34,7 @@ impl Type {
         match *self {
             Primitive(ref name) => {
                 match name.as_str() {
+                    "Bool" => 1,
                     "Int" => 4,
                     "Char" => 1,
                     "String" => 8,

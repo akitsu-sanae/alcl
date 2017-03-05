@@ -66,6 +66,7 @@ impl CodeGen {
         match *ty {
             Type::Primitive(ref name) => {
                 match name.as_str() {
+                    "Bool" => "i1".to_string(),
                     "Int" => "i32".to_string(),
                     "Unit" => "void".to_string(),
                     "RawString" | "String" => "i8*".to_string(),
@@ -140,8 +141,10 @@ impl CodeGen {
                 result += ".for_end:\n";
                 result
             },
+            Equal(box ref lhs, box ref rhs, _) | NotEqual(box ref lhs, box ref rhs, _) |
             Add(box ref lhs, box ref rhs, _) | Sub(box ref lhs, box ref rhs, _) |
-            Mult(box ref lhs, box ref rhs, _) | Div(box ref lhs, box ref rhs, _) => {
+            Mult(box ref lhs, box ref rhs, _) | Div(box ref lhs, box ref rhs, _) |
+            Surplus(box ref lhs, box ref rhs, _) => {
                 let (before, lhs, rhs) = if lhs.is_literal() && rhs.is_literal() {
                     ("".to_string(), self.expression(lhs), self.expression(rhs))
                 } else if lhs.is_literal() && !rhs.is_literal() {
@@ -182,7 +185,7 @@ impl CodeGen {
                 let (ty, align) = (self.type_(&ty), ty.align());
                 format!("  %{} = load {}, {}* %{}, align {}\n", self.variable_counter, ty, ty, name, align)
             },
-            _ => "<unimplemented expr>".to_string() // TODO
+            _ => "<unimplemented expr>\n".to_string() // TODO
         }
     }
 }
