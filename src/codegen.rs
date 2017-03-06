@@ -106,33 +106,19 @@ impl CodeGen {
         match *e {
             Let(ref id, box ref init, box ref body, _) => {
                 let init_ty = init.type_().unwrap();
-                let (before, init) = if init.is_literal() {
-                    ("".to_string(), self.expression(init))
-                } else {
-                    (self.expression(init), format!("%{}", self.variable_counter))
-                };
+                let mut result = self.expression(init);
+                let init_var = self.variable_counter;
                 let (init_ty, align) = (self.type_(&init_ty), init_ty.align());
-                let after = self.expression(body);
-                format!("{}  %{} = alloca {}, align {}\n  store {} {}, {}* %{}, align {}\n{}",
-                        before, id, init_ty, align,
-                        init_ty, init, init_ty, id, align, after)
+                self.variable_counter += 1;
+                result += format!("  %{} = allocal {}, align {}\n", id, init_ty, align).as_str();
+                result += format!("  store {} %{}, {}* %{}, align {}\n", init_ty, init_var, init_ty, id, align).as_str();
+                result += self.expression(body).as_str();
+                result
             },
             Sequence(box ref e1, box ref e2, _) => {
-                let mut expr_to_string = |e: &Expr| {
-                    let ty = e.type_().unwrap();
-                    let (ty, align) = (self.type_(&ty), ty.align());
-                    if e.is_literal() {
-                        let e = self.expression(e);
-                        self.variable_counter += 2;
-                        format!("  %{} = alloca {}, align {}\n  store {} {}, {}* %{}, align {}\n  %{} = load {}, {}* %{}, align {}\n",
-                                self.variable_counter - 1, ty, align,
-                                ty, e, ty, self.variable_counter - 1, align,
-                                self.variable_counter, ty, ty, self.variable_counter-1, align)
-                    } else {
-                        self.expression(e)
-                    }
-                };
-                format!("{}{}", expr_to_string(e1), expr_to_string(e2))
+                let e1 = self.expression(e1);
+                let e2 = self.expression(e2);
+                format!("{}{}", e1, e2)
             },
             If(box ref cond, box ref tr, ref else_ifs, box ref fl, _) => {
                 let mut result = "".to_string();
@@ -180,17 +166,20 @@ impl CodeGen {
                 result
             },
             For(ref name, box ref from, box ref to, box ref expr, _) => {
-                let mut result = "".to_string();
+                let mut result = self.expression(from);
+                let from_var = self.variable_counter;
                 result += format!("  %{} = alloca i32, align 4\n", name).as_str();
-                result += format!("  store i32 {}, i32* %{}, align 4\n", self.expression(from), name).as_str();
+                result += format!("  store i32 %{}, i32* %{}, align 4\n", from_var, name).as_str();
                 result += "  br label %.for_cond\n";
                 result += "\n";
                 result += ".for_cond:\n";
                 self.variable_counter += 1;
                 result += format!("  %{} = load i32, i32* %{}, align 4\n", self.variable_counter, name).as_str();
+                let index_var = self.variable_counter;
+                result += self.expression(to).as_str();
+                let to_var = self.variable_counter;
                 self.variable_counter += 1;
-                let to = self.expression(to);
-                result += format!("  %{} = icmp sle i32 %{}, {}\n", self.variable_counter, self.variable_counter-1, to).as_str();
+                result += format!("  %{} = icmp sle i32 %{}, %{}\n", self.variable_counter, index_var, to_var).as_str();
                 result += format!("  br i1 %{}, label %.for_body, label %.for_end\n", self.variable_counter).as_str();
                 result += "\n";
                 result += ".for_body:\n";
@@ -209,39 +198,39 @@ impl CodeGen {
             Add(box ref lhs, box ref rhs, _) | Sub(box ref lhs, box ref rhs, _) |
             Mult(box ref lhs, box ref rhs, _) | Div(box ref lhs, box ref rhs, _) |
             Surplus(box ref lhs, box ref rhs, _) => {
-                let (before, lhs, rhs) = if lhs.is_literal() && rhs.is_literal() {
-                    ("".to_string(), self.expression(lhs), self.expression(rhs))
-                } else if lhs.is_literal() && !rhs.is_literal() {
-                    (self.expression(rhs), self.expression(lhs), format!("%{}", self.variable_counter))
-                } else if !lhs.is_literal() && rhs.is_literal() {
-                    (self.expression(lhs), format!("%{}", self.variable_counter), self.expression(rhs))
-                } else {
-                    let mut before = self.expression(lhs);
-                    let lhs = self.variable_counter;
-                    before += self.expression(rhs).as_str();
-                    let rhs = self.variable_counter;
-                    (before, format!("%{}", lhs), format!("%{}", rhs))
-                };
+                let mut result = self.expression(lhs);
+                let lhs = self.variable_counter;
+                result += self.expression(rhs).as_str();
+                let rhs = self.variable_counter;
                 self.variable_counter += 1;
-                format!("{}  %{} = {} i32 {}, {}\n", before, self.variable_counter, e.operand(), lhs, rhs)
+                result += format!("  %{} = {} i32 %{}, %{}\n", self.variable_counter, e.operand(), lhs, rhs).as_str();
+                result
             },
             Println(box ref expr, _) => {
                 self.global_declares.insert("puts".to_string(), ("i32".to_string(), "i8*".to_string()));
-                if expr.is_literal() {
-                    let var = self.expression(expr);
-                    self.variable_counter += 1;
-                    format!("  %{} = call i32 @puts(i8* {})\n", self.variable_counter, var)
-                } else {
-                    let before = self.expression(expr);
-                    let var = self.variable_counter;
-                    self.variable_counter += 1;
-                    format!("{}  %{} = call i32 @puts(i8* %{})\n", before, self.variable_counter, var)
-                }
+                let mut result = self.expression(expr);
+                let var = self.variable_counter;
+                self.variable_counter += 1;
+                result += format!("  %{} = call i32 @puts(i8* %{})\n", self.variable_counter, var).as_str();
+                result
             },
-            Number(ref n, _) => n.to_string(),
+            Number(ref n, _) => {
+                self.variable_counter += 1;
+                let mut result = format!("  %{} = alloca i32, align 4\n", self.variable_counter);
+                result += format!("  store i32 {}, i32* %{}, align 4\n", n, self.variable_counter).as_str();
+                self.variable_counter += 1;
+                result += format!("  %{} = load i32, i32* %{}, align 4\n", self.variable_counter, self.variable_counter-1).as_str();
+                result
+            },
             String(ref str, _) => {
                 self.string_literals.push(str.clone());
-                format!("getelementptr inbounds ([{} x i8], [{} x i8]* @.str.{}, i32 0, i32 0)", str.len()+1, str.len()+1, self.string_literals.len()-1)
+                self.variable_counter += 1;
+                let mut result = format!("  %{} = alloca i8*, align 8\n", self.variable_counter);
+                result += format!("  store i8* getelementptr inbounds ([{} x i8], [{} x i8]* @.str.{}, i32 0, i32 0), i8** %{}, align 4\n",
+                    str.len()+1, str.len()+1, self.string_literals.len()-1, self.variable_counter).as_str();
+                self.variable_counter += 1;
+                result += format!("  %{} = load i8*, i8** %{}, align 8\n", self.variable_counter, self.variable_counter-1).as_str();
+                result
             },
             Identifier(ref name, ref info) => {
                 self.variable_counter += 1;
