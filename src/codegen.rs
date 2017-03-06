@@ -206,6 +206,26 @@ impl CodeGen {
                 result += format!("  %{} = {} i32 %{}, %{}\n", self.variable_counter, e.operand(), lhs, rhs).as_str();
                 result
             },
+            Apply(box ref f, ref args, ref info) => {
+                if let &Expr::Identifier(ref name, _) = f {
+                    let mut result = "".to_string();
+                    let args: Vec<_> = args.iter().map(|arg| {
+                        result += self.expression(&arg).as_str();
+                        (self.type_(&arg.type_().unwrap()), self.variable_counter)
+                    }).collect();
+                    let args = args[1..].iter().fold(
+                        format!("{} %{}", args[0].0, args[0].1),
+                        |acc, &(ref ty, ref var)| {
+                            format!("{}, {} %{}", acc, ty, var)
+                        });
+                    let ret_ty = self.type_(&info.clone().type_.unwrap());
+                    self.variable_counter += 1;
+                    result += format!("  %{} = call {} @{}({})\n", self.variable_counter, ret_ty, name, args).as_str();
+                    result
+                } else {
+                    panic!("nyan")
+                }
+            },
             Println(box ref expr, _) => {
                 self.global_declares.insert("puts".to_string(), ("i32".to_string(), "i8*".to_string()));
                 let mut result = self.expression(expr);

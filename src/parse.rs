@@ -21,6 +21,7 @@ enum Token {
     Percent,
     Equal,
     Colon,
+    Comma,
     Semicolon,
     At,
     Dot,
@@ -153,6 +154,7 @@ fn char_to_token() -> HashMap<char, Token> {
     result.insert('%', Token::Percent);
     result.insert('=', Token::Equal);
     result.insert(':', Token::Colon);
+    result.insert(',', Token::Comma);
     result.insert(';', Token::Semicolon);
     result.insert('@', Token::At);
     result.insert('.', Token::Dot);
@@ -524,15 +526,29 @@ impl<'a> Parser<'a> {
         acc
     }
 
+    fn arguments(&mut self) -> Vec<Expr> {
+        let mut result = vec![];
+        result.push(self.expression());
+        loop {
+            if self.scanner.peek().unwrap() != Token::Comma {
+                break;
+            }
+            self.scanner.expect(Token::Comma);
+            result.push(self.expression());
+        }
+        result
+    }
+
     fn apply_expr(&mut self) -> Expr {
         let mut acc = self.dot_expr();
         loop {
-            if self.scanner.peek().unwrap() == Token::At {
-                self.scanner.expect(Token::At);
-                acc = Expr::Apply(box acc, box self.dot_expr(), Info::new())
-            } else {
+            if self.scanner.peek().unwrap() != Token::LeftParen {
                 break;
             }
+            self.scanner.expect(Token::LeftParen);
+            let args = self.arguments();
+            acc = Expr::Apply(box acc, args, Info::new());
+            self.scanner.expect(Token::RightParen);
         }
         acc
     }

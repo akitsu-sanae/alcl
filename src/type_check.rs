@@ -99,6 +99,18 @@ fn type_check_impl(expr: &mut Expr, env: &Env) -> Result<Type, String> {
                 Ok(lhs)
             }
         },
+        Apply(box ref mut f, ref mut args, ref mut info) => {
+            if let Type::Function(box ref mut ret_ty, ref mut params_ty) = try!(type_check_impl(f, env)) {
+                let args: Vec<_> = args.iter_mut().map(|e| type_check_impl(e, env).unwrap()).collect();
+                if &args != params_ty {
+                    return Err("type error: not match function arg types".to_string())
+                }
+                info.type_ = Some(ret_ty.clone());
+                Ok(ret_ty.clone())
+            } else {
+                Err("type error: can not apply for non function expr".to_string())
+            }
+        }
         Println(box ref mut expr, ref mut info) => {
             if try!(type_check_impl(expr, env)) != Type::string() {
                 Err("println expr accepts only string expr".to_string())
