@@ -226,6 +226,23 @@ impl CodeGen {
                     panic!("nyan")
                 }
             },
+            Dot(box ref expr, ref name, _) => {
+                let expr_ty = expr.type_().unwrap();
+                match expr_ty {
+                    Type::Struct(ref struct_name, ref data) => {
+                        let pos = data.iter().position(|branch| {
+                            &branch.0 == name
+                        }).unwrap();
+                        let mut result = self.expression(expr);
+                        let struct_var = self.variable_counter;
+                        self.variable_counter += 1;
+                        result += format!("  %{} = getelementptr inbounds %{}, %{}* {}, i32 0, i32 {}",
+                                self.variable_counter, struct_name, struct_name, struct_var, pos).as_str();
+                        result
+                    },
+                    _ => panic!("can not apply dor expr for non struct expr: {:?}", expr_ty)
+                }
+            },
             Println(box ref expr, _) => {
                 self.global_declares.insert("puts".to_string(), ("i32".to_string(), "i8*".to_string()));
                 let mut result = self.expression(expr);

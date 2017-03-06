@@ -34,7 +34,7 @@ pub enum Expr {
     Mult(Box<Expr>, Box<Expr>, Info),
     Div(Box<Expr>, Box<Expr>, Info),
     Apply(Box<Expr>, Vec<Expr>, Info),
-    Dot(Box<Expr>, Box<Expr>, Info),
+    Dot(Box<Expr>, String, Info),
     Println(Box<Expr>, Info), // temporary
     Number(i64, Info),
     String(String, Info),

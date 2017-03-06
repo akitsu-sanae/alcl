@@ -558,7 +558,8 @@ impl<'a> Parser<'a> {
         loop {
             if self.scanner.peek().unwrap() == Token::Dot {
                 self.scanner.expect(Token::Dot);
-                acc = Expr::Dot(box acc, box self.primary_expr(), Info::new())
+                let name = self.scanner.next().unwrap().as_identifier().unwrap();
+                acc = Expr::Dot(box acc, name.clone(), Info::new())
             } else {
                 break;
             }
