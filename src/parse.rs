@@ -47,6 +47,7 @@ enum Token {
     For,
     In,
     Println,
+    Struct,
 
     Number(i64),
     String(String),
@@ -76,19 +77,19 @@ impl Token {
     pub fn as_number(&self) -> Result<i64, String> {
         match *self {
             Token::Number(ref n) => Ok(n.clone()),
-            _ => Err("non number token".to_string())
+            _ => Err(format!("non number token: {:?}", self))
         }
     }
     pub fn as_identifier(&self) -> Result<String, String> {
         match *self {
             Token::Identifier(ref id) => Ok(id.clone()),
-            _ => Err("non Identifier token".to_string())
+            _ => Err(format!("non Identifier token: {:?}", self))
         }
     }
     pub fn as_string(&self) -> Result<String, String> {
         match *self {
             Token::String(ref str) => Ok(str.clone()),
-            _ => Err("non String token".to_string())
+            _ => Err(format!("non String token: {:?}", self))
         }
 
     }
@@ -177,6 +178,7 @@ fn str_to_token() -> HashMap<String, Token> {
     result.insert("for".to_string(), Token::For);
     result.insert("in".to_string(), Token::In);
     result.insert("println".to_string(), Token::Println);
+    result.insert("struct".to_string(), Token::Struct);
     result
 }
 
@@ -307,12 +309,38 @@ impl<'a> Parser<'a> {
             let token = self.scanner.peek().unwrap();
             match token {
                 Token::Func => result.functions.push(self.function()),
+                Token::Type => {
+                    let ty = self.type_define();
+                    result.types.insert(ty.0, ty.1);
+                },
                 Token::Eof => break,
                 _ => panic!("unexpected token: {:?}", self.scanner),
             }
 
         }
         result
+    }
+
+    pub fn type_define(&mut self) -> (String, Type) {
+        self.scanner.expect(Token::Type);
+        let type_name = self.scanner.next().unwrap().as_identifier().unwrap();
+        self.scanner.expect(Token::Equal);
+        // temporary, only struct type
+        // TODO: deal with other types
+        self.scanner.expect(Token::Struct);
+        self.scanner.expect(Token::LeftBrace);
+        let mut data = vec![];
+        loop {
+            if self.scanner.peek().unwrap() == Token::RightBrace {
+                break;
+            }
+            let name = self.scanner.next().unwrap().as_identifier().unwrap();
+            self.scanner.expect(Token::Colon);
+            let ty = self.type_();
+            data.push((name, ty));
+        }
+        self.scanner.expect(Token::RightBrace);
+        (type_name.clone(), Type::Struct(type_name, data))
     }
 
     pub fn type_(&mut self) -> Type {

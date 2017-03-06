@@ -6,16 +6,21 @@
 ============================================================================*/
 
 use function::Function;
+use type_::Type;
+
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct Program {
-    pub functions: Vec<Function>
+    pub functions: Vec<Function>,
+    pub types: HashMap<String, Type>,
 }
 
 impl Program {
     pub fn new() -> Self {
         Program {
-            functions: vec![]
+            functions: vec![],
+            types: HashMap::new()
         }
     }
 }

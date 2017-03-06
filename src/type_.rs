@@ -9,7 +9,8 @@
 pub enum Type {
     Primitive(String),
     Function(Box<Type>, Vec<Type>),
-    Generic(String, Box<Type>)
+    Generic(String, Box<Type>),
+    Struct(String, Vec<(String, Type)>)
 }
 
 impl Type {
