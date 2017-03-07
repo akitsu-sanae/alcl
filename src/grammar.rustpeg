@@ -1,0 +1,135 @@
+/*============================================================================
+  Copyright (C) 2017 akitsu sanae
+  https://github.com/akitsu-sanae/alcl
+  Distributed under the Boost Software License, Version 1.0. (See accompanying
+  file LICENSE or copy at http://www.boost.org/LICENSE_1_0.txt)
+============================================================================*/
+use std::collections::HashMap;
+use super::expr::*;
+use super::program::Program;
+use super::function::Function;
+use super::type_::Type;
+
+pub program -> Program
+  = f: function* {
+      Program {
+        functions: f,
+        types: HashMap::new()
+      }
+  }
+
+type_list -> Vec<Type>
+  = head: type_ tail:(spaces "," spaces ty:type_ { ty })* {
+      let mut result = tail;
+      result.insert(0, head);
+      result
+  }
+
+type_ -> Type
+  = spaces "(" spaces from:type_list spaces ")" spaces "->" spaces to:type_ {
+      Type::Function(box to, from)
+  }
+  / spaces name:identifier spaces "[" spaces ty:type_ spaces "]" spaces { Type::Generic(name, box ty) }
+  / spaces name:identifier spaces { Type::Primitive(name) }
+
+parameters -> Vec<(String, Type)>
+  = (id:identifier spaces ":" spaces ty: type_ {(id.to_string(), ty)})*
+
+
+function -> Function
+  = spaces "func" spaces name:identifier spaces params:parameters spaces ":" spaces ret_ty:type_ spaces "{" spaces body:expr spaces "}" spaces {
+      Function {
+        name: name,
+        args: params,
+        return_type: ret_ty,
+        body: body
+      }
+  }
+
+pub expr -> Expr
+  = spaces e:let_expr { e }
+
+let_expr -> Expr
+  = "let" spaces name:identifier spaces "=" spaces init:if_expr spaces ";" spaces body:expr {
+      Expr::Let(name, box init, box body, Info::new())
+  }
+  / sequence_expr
+
+sequence_expr -> Expr
+  = e1:if_expr spaces ";" spaces e2:sequence_expr {
+      Expr::Sequence(box e1, box e2, Info::new())
+  }
+  / if_expr
+
+else_ifs -> Vec<(Expr, Expr)>
+  = ("if" cond:bin_op_expr "{" body:expr "}" spaces "else" spaces { (cond, body) })*
+
+if_expr -> Expr
+  = "if" cond: bin_op_expr "{" tr:expr "}" spaces "else" spaces elsif:else_ifs "{" fl:expr "}" {
+      Expr::If(box cond, box tr, elsif, box fl, Info::new())
+  }
+  / for_expr
+
+for_expr -> Expr
+  = "for" spaces idx:identifier spaces "in" spaces start:if_expr spaces ".." spaces last:if_expr spaces "{" spaces body:expr spaces "}" spaces {
+      Expr::For(idx, box start, box last, box body, Info::new())
+  }
+  / println_expr
+
+println_expr -> Expr
+  = "println" spaces e:bin_op_expr {
+      Expr::Println(box e, Info::new())
+  }
+  / bin_op_expr
+
+bin_op_expr -> Expr
+  = #infix<apply_expr> {
+    #L l "==" r { Expr::Equal(box l, box r, Info::new()) }
+       l "!=" r { Expr::NotEqual(box l, box r, Info::new()) }
+    #L l "+" r { Expr::Add(box l, box r, Info::new()) }
+       l "-" r { Expr::Sub(box l, box r, Info::new()) }
+    #L l "*" r { Expr::Mult(box l, box r, Info::new()) }
+       l "/" r { Expr::Div(box l, box r, Info::new()) }
+       l "%" r { Expr::Surplus(box l, box r, Info::new()) }
+  }
+
+arguments -> Vec<Expr>
+  = head:expr tail:("," e:expr { e })* {
+      let mut result = tail;
+      result.insert(0, head);
+      result
+  }
+
+apply_expr -> Expr
+  = acc:dot_expr args:("(" arg:arguments ")" { arg })* {
+      args.iter().fold(acc, |e, arg| {
+          Expr::Apply(box e, arg.clone(), Info::new())
+      })
+  }
+  / dot_expr
+
+dot_expr -> Expr
+  = acc:primary_expr ids: ("." id:identifier {id})* {
+      ids.iter().fold(acc, |e, id| {
+          Expr::Dot(box e, id.clone(), Info::new())
+      })
+  }
+  / primary_expr
+
+primary_expr -> Expr
+  = spaces n:number spaces { Expr::Number(n, Info::new()) }
+  / spaces id:identifier spaces { Expr::Identifier(id, Info::new()) }
+  / spaces str:string spaces { Expr::String(str, Info::new()) }
+  / spaces "(" spaces e:expr spaces ")" spaces { e }
+
+number -> i64
+  = n:$([0-9]+) { n.parse().unwrap() }
+
+identifier -> String
+  = s:$([a-zA-Z_][a-zA-Z0-9_]*) { s.to_string() }
+
+string -> String
+  = "\"" s:$([^\"]*) "\"" { s.to_string() }
+
+spaces = [ \n\t]*
+

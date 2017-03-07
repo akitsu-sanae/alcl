@@ -5,6 +5,9 @@
   file LICENSE or copy at http://www.boost.org/LICENSE_1_0.txt)
 ============================================================================*/
 
+#![feature(plugin)]
+#![plugin(peg_syntax_ext)]
+
 #![feature(box_syntax)]
 #![feature(box_patterns)]
 
@@ -12,9 +15,10 @@ mod expr;
 mod function;
 mod type_;
 mod program;
-mod parse;
 mod type_check;
 mod codegen;
+
+peg_file! parse("grammar.rustpeg");
 
 fn main() {
     use std::io::Read;
@@ -23,8 +27,7 @@ fn main() {
     let mut input = String::new();
     f.read_to_string(&mut input).expect("can not read input file");
 
-    let mut parser = parse::Parser::new(input.as_str());
-    let mut ast = parser.program();
+    let mut ast = parse::program(input.as_str()).unwrap();
     type_check::type_check(&mut ast);
     let mut codegen = codegen::CodeGen::new();
     println!("{}", codegen.program(&ast));
