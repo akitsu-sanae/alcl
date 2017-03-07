@@ -1,0 +1,8 @@
+func add a: Int b: Int : Int {
+    a + b
+}
+
+func main : Int {
+    add(1, 4)
+}
+

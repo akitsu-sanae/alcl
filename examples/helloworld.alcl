@@ -1,0 +1,6 @@
+
+func main : Int {
+    println "Hello, World!";
+    0
+}
+
