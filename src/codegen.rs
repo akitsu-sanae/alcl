@@ -109,8 +109,7 @@ impl CodeGen {
                 let mut result = self.expression(init);
                 let init_var = self.variable_counter;
                 let (init_ty, align) = (self.type_(&init_ty), init_ty.align());
-                self.variable_counter += 1;
-                result += format!("  %{} = allocal {}, align {}\n", id, init_ty, align).as_str();
+                result += format!("  %{} = alloca {}, align {}\n", id, init_ty, align).as_str();
                 result += format!("  store {} %{}, {}* %{}, align {}\n", init_ty, init_var, init_ty, id, align).as_str();
                 result += self.expression(body).as_str();
                 result
@@ -236,7 +235,7 @@ impl CodeGen {
                         let mut result = self.expression(expr);
                         let struct_var = self.variable_counter;
                         self.variable_counter += 1;
-                        result += format!("  %{} = getelementptr inbounds %{}, %{}* {}, i32 0, i32 {}",
+                        result += format!("  %{} = getelementptr inbounds %{}, %{}* %{}, i32 0, i32 {}",
                                 self.variable_counter, struct_name, struct_name, struct_var, pos).as_str();
                         result
                     },
