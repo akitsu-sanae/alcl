@@ -25,7 +25,7 @@ type_list -> Vec<Type>
       result
   }
 
-type_ -> Type
+pub type_ -> Type
   = spaces "(" spaces from:type_list spaces ")" spaces "->" spaces to:type_ {
       Type::Function(box to, from)
   }
@@ -36,7 +36,7 @@ parameters -> Vec<(String, Type)>
   = (id:identifier spaces ":" spaces ty: type_ {(id.to_string(), ty)})*
 
 
-function -> Function
+pub function -> Function
   = spaces "func" spaces name:identifier spaces params:parameters spaces ":" spaces ret_ty:type_ spaces "{" spaces body:expr spaces "}" spaces {
       Function {
         name: name,

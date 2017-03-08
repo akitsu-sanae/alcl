@@ -16,12 +16,3 @@ pub struct Program {
     pub types: HashMap<String, Type>,
 }
 
-impl Program {
-    pub fn new() -> Self {
-        Program {
-            functions: vec![],
-            types: HashMap::new()
-        }
-    }
-}
-
