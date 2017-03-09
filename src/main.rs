@@ -33,7 +33,6 @@ fn main() {
     println!("{}", codegen.program(&ast));
 }
 
-
 #[cfg(test)]
 mod parse_test {
     use super::expr::*;
@@ -97,6 +96,37 @@ mod parse_test {
         }))
     }
 
+}
+
+#[cfg(test)]
+mod codegen_test {
+    use super::type_check;
+    use super::parse;
+    use super::codegen;
+
+
+    #[test]
+    fn function() {
+        use std::io::Read;
+        use std::io::Write;
+        use std::fs::File;
+        let mut f = File::open("./examples/function.alcl").expect("not found: inputed filename");
+        let mut input = String::new();
+        f.read_to_string(&mut input).expect("can not read input file");
+
+        let mut ast = parse::program(input.as_str()).unwrap();
+        type_check::type_check(&mut ast);
+        let mut codegen = codegen::CodeGen::new();
+        let mut f = File::create("/tmp/function.ll").unwrap();
+        assert!(f.write_all(codegen.program(&ast).as_bytes()).is_ok());
+
+        use std::process::Command;
+        let result = Command::new("lli-3.8")
+            .arg("/tmp/function.ll")
+            .output()
+            .expect("failed to execute lli process");
+        assert_eq!(result.status.code(), Some(5));
+    }
 }
 
 
