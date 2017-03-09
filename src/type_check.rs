@@ -5,20 +5,56 @@
   file LICENSE or copy at http://www.boost.org/LICENSE_1_0.txt)
 ============================================================================*/
 
+use std::collections::HashMap;
 use type_::Type;
 use program::Program;
 use expr::Expr;
 
-pub type Env = Vec<(String, Type)>;
+#[derive(Clone, PartialEq, Eq, Debug)]
+struct Env {
+    variables: Vec<(String, Type)>,
+    types: HashMap<String, Type>
+}
+
+impl Env {
+    fn new() -> Self {
+        Env {
+            variables: vec![],
+            types: HashMap::new()
+        }
+    }
+
+    fn add_variable(&mut self, name: String, ty: Type) {
+        self.variables.push((name, ty));
+    }
+    fn append_variable(&mut self, mut args: Vec<(String, Type)>) {
+        self.variables.append(&mut args);
+    }
+    fn add_type(&mut self, name: String, ty: Type) {
+        self.types.insert(name, ty);
+    }
+    fn append_type(&mut self, args: HashMap<String, Type>) {
+        self.types.extend(args);
+    }
+    fn lookup_var(&self, name: &String) -> Option<Type> {
+        self.variables.iter().find(|ref e| e.0 == name.clone()).map(|ref e| e.1.clone())
+    }
+    fn lookup_type(&self, name: &String) -> Option<Type> {
+        self.types.get(name).cloned()
+    }
+}
 
 pub fn type_check(program: &mut Program) {
-    let mut env = vec![];
+    let mut env = Env::new();
     for ref func in &program.functions {
-        env.push((func.name.clone(), func.type_()));
+        env.add_variable(func.name.clone(), func.type_());
+    }
+    for (name, ty) in program.types.iter() {
+        env.add_type(name.clone(), ty.clone());
     }
 
     for ref mut func in &mut program.functions {
-        env.append(&mut func.args.clone());
+        env.append_variable(func.args.clone());
         let ret_ty = type_check_impl(&mut func.body, &env).unwrap();
         if ret_ty != func.return_type {
             panic!("type error: not match return type: {:?} and {:?}", func.return_type, ret_ty);
@@ -32,7 +68,7 @@ fn type_check_impl(expr: &mut Expr, env: &Env) -> Result<Type, String> {
         Let(ref name, box ref mut init, box ref mut body, ref mut info) => {
             let ty = try!(type_check_impl(init, env));
             let mut env = env.clone();
-            env.push((name.clone(), ty));
+            env.add_variable(name.clone(), ty);
             let ty = try!(type_check_impl(body, &env));
             info.type_ = Some(ty.clone());
             Ok(ty)
@@ -71,7 +107,7 @@ fn type_check_impl(expr: &mut Expr, env: &Env) -> Result<Type, String> {
                 return Err("type error in for expression: from expr and to expr must have same type ".to_string());
             }
             let mut env = env.clone();
-            env.push((index.clone(), from_ty));
+            env.add_variable(index.clone(), from_ty);
             try!(type_check_impl(body, &env));
             info.type_ = Some(Type::unit());
             Ok(Type::unit())
@@ -111,6 +147,30 @@ fn type_check_impl(expr: &mut Expr, env: &Env) -> Result<Type, String> {
                 Err("type error: can not apply for non function expr".to_string())
             }
         }
+        Construct(ref name, ref mut args, ref mut info) => {
+            let struct_ty = env.lookup_type(name).unwrap();
+            match struct_ty {
+                Type::Struct(_, ref params) => {
+                    let args: Vec<_> = args.iter_mut().map(|&mut (ref name, ref mut e)| (name.clone(), type_check_impl(e, env).unwrap())).collect();
+                    if &args != params {
+                        return Err("type error: not match construct arg types".to_string());
+                    }
+                    info.type_ = Some(struct_ty.clone());
+                    Ok(struct_ty.clone())
+                },
+                _ => Err("can not construct non struct type".to_string())
+            }
+        }
+        Dot(box ref mut e, ref name, ref mut info) => {
+            match type_check_impl(e, env).unwrap() {
+                Type::Struct(_, param) => {
+                    let ty = param.iter().find(|ref arg| &arg.0 == name).unwrap().1.clone();
+                    info.type_ = Some(ty.clone());
+                    Ok(ty)
+                },
+                _ => Err("can not apply dot expr for non struct type".to_string())
+            }
+        }
         Println(box ref mut expr, ref mut info) => {
             if try!(type_check_impl(expr, env)) != Type::string() {
                 Err("println expr accepts only string expr".to_string())
@@ -128,7 +188,7 @@ fn type_check_impl(expr: &mut Expr, env: &Env) -> Result<Type, String> {
             Ok(Type::string())
         }
         Identifier(ref name, ref mut info) => {
-            if let Some(ty) = lookup(env, name) {
+            if let Some(ty) = env.lookup_var(name) {
                 info.type_ = Some(ty.clone());
                 Ok(ty)
             } else {
@@ -140,7 +200,4 @@ fn type_check_impl(expr: &mut Expr, env: &Env) -> Result<Type, String> {
 }
 
 
-fn lookup(env: &Env, name: &String) -> Option<Type> {
-    env.iter().find(|ref e| e.0 == name.clone()).map(|ref e| e.1.clone())
-}
 

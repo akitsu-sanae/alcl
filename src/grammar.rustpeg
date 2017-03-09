@@ -11,11 +11,23 @@ use super::function::Function;
 use super::type_::Type;
 
 pub program -> Program
-  = f: function* {
+  = tydef:type_define* f: function* {
+      let mut types = HashMap::new();
+      for (name, ty) in tydef {
+          types.insert(name ,ty);
+      }
       Program {
         functions: f,
-        types: HashMap::new()
+        types: types
       }
+  }
+
+typedef_arg -> Vec<(String, Type)>
+  = (id:identifier ":" ty:type_ [,\n]? { (id, ty) })*
+
+type_define -> (String, Type)
+  = spaces "type" spaces name:identifier spaces "=" spaces "struct" spaces "{" spaces arg:typedef_arg spaces "}" {
+      (name.clone(), Type::Struct(name, arg))
   }
 
 type_list -> Vec<Type>
@@ -101,10 +113,19 @@ arguments -> Vec<Expr>
   }
 
 apply_expr -> Expr
-  = acc:dot_expr args:("(" arg:arguments ")" { arg })* {
+  = acc:construct_expr args:("(" arg:arguments ")" { arg })* {
       args.iter().fold(acc, |e, arg| {
           Expr::Apply(box e, arg.clone(), Info::new())
       })
+  }
+  / construct_expr
+
+construct_arg -> Vec<(String, Expr)>
+  = (id:identifier ":" e:expr [,\n]? { (id, e) })*
+
+construct_expr -> Expr
+  = name:identifier spaces "{" spaces arg: construct_arg spaces "}" spaces {
+      Expr::Construct(name, arg, Info::new())
   }
   / dot_expr
 

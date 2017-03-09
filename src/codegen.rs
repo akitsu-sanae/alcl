@@ -30,9 +30,27 @@ impl CodeGen {
 
     pub fn program(&mut self, program: &Program) -> String {
         let mut result = String::new();
+
+        for (_, ty) in &program.types {
+            match *ty {
+                Type::Struct(ref name, ref params) => {
+                    let params = params[1..].iter().fold(
+                        format!("{}", self.type_(&params[0].1)),
+                        |acc, &(_, ref ty)| {
+                            format!("{}, {}", acc, self.type_(ty))
+                        });
+                    result += format!("%{} = type {{ {} }}\n", name, params).as_str();
+                },
+                _ => ()
+            }
+        }
+
+        result += "\n";
+
         for ref func in &program.functions {
             result += self.function(&func).as_str();
         }
+
         for ref declare in &self.global_declares {
             let ref ty = declare.1;
             let (name, ret_ty, arg_ty) = (&declare.0, &ty.0, &ty.1);
@@ -85,7 +103,8 @@ impl CodeGen {
                     },
                     _ => "<unimplemented generic type>".to_string() // TODO
                 }
-            }
+            },
+            Type::Struct(ref name, _) => format!("%{}", name),
             _ => "<unimplemented type>".to_string() // TODO
         }
     }
@@ -224,6 +243,28 @@ impl CodeGen {
                 } else {
                     panic!("nyan")
                 }
+            },
+            Construct(ref name, ref args, ref info) => {
+                let align = info.clone().type_.unwrap().align();
+                self.variable_counter += 1;
+                let mut result = format!("  %{} = alloca %{}, align {}\n", self.variable_counter, name, align);
+                let var = self.variable_counter;
+
+                for (i, &(_, ref arg)) in args.iter().enumerate() {
+                    let arg_ty = arg.type_().unwrap();
+                    let arg_align = arg_ty.align();
+                    let arg_ty = self.type_(&arg_ty);
+                    self.variable_counter += 1;
+                    result += format!("  %{} = getelementptr inbounds %{}, %{}* %{}, i32 0, i32 {}\n", self.variable_counter, name, name, var, i).as_str();
+                    let target_ptr = self.variable_counter;
+                    result += self.expression(arg).as_str();
+                    let arg_var = self.variable_counter;
+                    result += format!("  store {} %{}, {}* %{}, align {}\n",
+                                      arg_ty, arg_var, arg_ty, target_ptr, arg_align).as_str();
+                }
+                self.variable_counter += 1;
+                result += format!("  %{} = load %{}, %{}* %{}, align {}\n", self.variable_counter, name, name, var, align).as_str();
+                result
             },
             Dot(box ref expr, ref name, _) => {
                 let expr_ty = expr.type_().unwrap();

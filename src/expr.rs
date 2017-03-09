@@ -34,6 +34,7 @@ pub enum Expr {
     Mult(Box<Expr>, Box<Expr>, Info),
     Div(Box<Expr>, Box<Expr>, Info),
     Apply(Box<Expr>, Vec<Expr>, Info),
+    Construct(String, Vec<(String, Expr)>, Info),
     Dot(Box<Expr>, String, Info),
     Println(Box<Expr>, Info), // temporary
     Number(i64, Info),
@@ -66,7 +67,7 @@ impl Expr {
             Equal(_, _, ref info) | NotEqual(_, _, ref info) |
             Add(_, _, ref info) | Sub(_, _, ref info) |
             Surplus(_, _, ref info) | Mult(_, _, ref info) | Div(_, _, ref info) |
-            Apply(_, _, ref info) |
+            Apply(_, _, ref info) | Construct(_, _, ref info) |
             Dot(_, _, ref info) |
             Println(_, ref info) |
             Number(_, ref info) | String(_, ref info) |

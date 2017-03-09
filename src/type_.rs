@@ -48,6 +48,11 @@ impl Type {
                     _ => 42 // TODO
                 }
             }
+            Struct(_, ref params) => {
+                params.iter().map(|param| {
+                    param.1.align()
+                }).max().unwrap()
+            }
             _ => 42 // TODO
         }
     }
