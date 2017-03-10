@@ -74,10 +74,10 @@ sequence_expr -> Expr
   / if_expr
 
 else_ifs -> Vec<(Expr, Expr)>
-  = ("if" cond:bin_op_expr "{" body:expr "}" spaces "else" spaces { (cond, body) })*
+  = ("if" cond:subst_expr "{" body:expr "}" spaces "else" spaces { (cond, body) })*
 
 if_expr -> Expr
-  = "if" cond: bin_op_expr "{" tr:expr "}" spaces "else" spaces elsif:else_ifs "{" fl:expr "}" {
+  = "if" cond: subst_expr "{" tr:expr "}" spaces "else" spaces elsif:else_ifs "{" fl:expr "}" {
       Expr::If(box cond, box tr, elsif, box fl, Info::new())
   }
   / for_expr
@@ -91,6 +91,12 @@ for_expr -> Expr
 println_expr -> Expr
   = "println" spaces e:bin_op_expr {
       Expr::Println(box e, Info::new())
+  }
+  / subst_expr
+
+subst_expr -> Expr
+  = lhs:dot_expr spaces "=" spaces rhs:subst_expr {
+      Expr::Subst(box lhs, box rhs, Info::new())
   }
   / bin_op_expr
 

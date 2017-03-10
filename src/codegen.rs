@@ -206,10 +206,24 @@ impl CodeGen {
                 result += format!("  %{} = load i32, i32* %i, align 4\n", self.variable_counter).as_str();
                 self.variable_counter += 1;
                 result += format!("  %{} = add i32 %{}, 1", self.variable_counter, self.variable_counter-1).as_str();
-                result += format!("  store i32 %{}, i32* %{}, align 4", self.variable_counter, name).as_str();
+                result += format!("  store i32 %{}, i32* %{}, align 4\n", self.variable_counter, name).as_str();
                 result += "br label %.for_cond\n";
                 result += "\n";
                 result += ".for_end:\n";
+                result
+            },
+            Subst(box ref lhs, box ref rhs, _) => {
+                let ty = rhs.type_().unwrap();
+                let (ty, align) = (self.type_(&ty), ty.align());
+                let mut result = self.expression(rhs);
+                let rhs_var = self.variable_counter;
+                if let &Expr::Identifier(ref name, _) = lhs {
+                    result += format!("  store {} %{}, {}* %{}, align {}", ty, rhs_var, ty, name, align).as_str();
+                } else {
+                    result += self.expression(lhs).as_str();
+                    let lhs_var = self.variable_counter;
+                    result += format!("  store {} %{}, {}* %{}, align {}\n", ty, rhs_var, ty, lhs_var, align).as_str();
+                }
                 result
             },
             Equal(box ref lhs, box ref rhs, _) | NotEqual(box ref lhs, box ref rhs, _) |
@@ -276,7 +290,7 @@ impl CodeGen {
                         let mut result = self.expression(expr);
                         let struct_var = self.variable_counter;
                         self.variable_counter += 1;
-                        result += format!("  %{} = getelementptr inbounds %{}, %{}* %{}, i32 0, i32 {}",
+                        result += format!("  %{} = getelementptr inbounds %{}, %{}* %{}, i32 0, i32 {}\n",
                                 self.variable_counter, struct_name, struct_name, struct_var, pos).as_str();
                         result
                     },

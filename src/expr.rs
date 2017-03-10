@@ -26,6 +26,7 @@ pub enum Expr {
     Sequence(Box<Expr>, Box<Expr>, Info),
     If(Box<Expr>, Box<Expr>, Vec<(Expr, Expr)>, Box<Expr>, Info),
     For(String, Box<Expr>, Box<Expr>, Box<Expr>, Info),
+    Subst(Box<Expr>, Box<Expr>, Info),
     Equal(Box<Expr>, Box<Expr>, Info),
     NotEqual(Box<Expr>, Box<Expr>, Info),
     Add(Box<Expr>, Box<Expr>, Info),
@@ -64,6 +65,7 @@ impl Expr {
             Sequence(_, _, ref info) |
             If(_, _, _, _, ref info) |
             For(_, _, _, _, ref info) |
+            Subst(_, _, ref info) |
             Equal(_, _, ref info) | NotEqual(_, _, ref info) |
             Add(_, _, ref info) | Sub(_, _, ref info) |
             Surplus(_, _, ref info) | Mult(_, _, ref info) | Div(_, _, ref info) |

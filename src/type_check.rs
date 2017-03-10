@@ -112,6 +112,16 @@ fn type_check_impl(expr: &mut Expr, env: &Env) -> Result<Type, String> {
             info.type_ = Some(Type::unit());
             Ok(Type::unit())
         },
+        Subst(box ref mut lhs, box ref mut rhs, ref mut info) => {
+            let lhs = try!(type_check_impl(lhs, env));
+            let rhs = try!(type_check_impl(rhs, env));
+            if lhs != rhs {
+                Err("type error in subst expr: lhs and rhs have different types.".to_string())
+            } else {
+                info.type_ = Some(lhs);
+                Ok(rhs)
+            }
+        },
         Equal(box ref mut lhs, box ref mut rhs, ref mut info) |
         NotEqual(box ref mut lhs, box ref mut rhs, ref mut info) => {
             let lhs = try!(type_check_impl(lhs, env));
