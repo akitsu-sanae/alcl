@@ -15,6 +15,7 @@ use std::collections::HashMap;
 pub struct CodeGen {
     variable_counter: i32,
     if_counter: i32,
+    for_counter: i32,
     //                         name   ret_type arg_type
     global_declares : HashMap<String, (String, String)>,
     string_literals: Vec<String>
@@ -25,6 +26,7 @@ impl CodeGen {
         CodeGen {
             variable_counter: 0,
             if_counter: 0,
+            for_counter: 0,
             global_declares: HashMap::new(),
             string_literals: vec![]
         }
@@ -183,13 +185,17 @@ impl CodeGen {
                 result
             },
             For(ref name, box ref from, box ref to, box ref expr, _) => {
+                self.for_counter += 1;
+                let for_counter = self.for_counter;
                 let mut result = self.expression(from);
                 let from_var = self.variable_counter;
-                result += format!("  %{} = alloca i32, align 4\n", name).as_str();
+                if for_counter == 1 {
+                    result += format!("  %{} = alloca i32, align 4\n", name).as_str();
+                }
                 result += format!("  store i32 %{}, i32* %{}, align 4\n", from_var, name).as_str();
-                result += "  br label %.for_cond\n";
+                result += format!("  br label %.for_cond.{}\n", for_counter).as_str();
                 result += "\n";
-                result += ".for_cond:\n";
+                result += format!(".for_cond.{}:\n", for_counter).as_str();
                 self.variable_counter += 1;
                 result += format!("  %{} = load i32, i32* %{}, align 4\n", self.variable_counter, name).as_str();
                 let index_var = self.variable_counter;
@@ -197,18 +203,18 @@ impl CodeGen {
                 let to_var = self.variable_counter;
                 self.variable_counter += 1;
                 result += format!("  %{} = icmp sle i32 %{}, %{}\n", self.variable_counter, index_var, to_var).as_str();
-                result += format!("  br i1 %{}, label %.for_body, label %.for_end\n", self.variable_counter).as_str();
+                result += format!("  br i1 %{}, label %.for_body.{}, label %.for_end.{}\n", self.variable_counter, for_counter, for_counter).as_str();
                 result += "\n";
-                result += ".for_body:\n";
+                result += format!(".for_body.{}:\n", for_counter).as_str();
                 result += self.expression(expr).as_str();
                 self.variable_counter += 1;
                 result += format!("  %{} = load i32, i32* %i, align 4\n", self.variable_counter).as_str();
                 self.variable_counter += 1;
                 result += format!("  %{} = add i32 %{}, 1", self.variable_counter, self.variable_counter-1).as_str();
                 result += format!("  store i32 %{}, i32* %{}, align 4\n", self.variable_counter, name).as_str();
-                result += "br label %.for_cond\n";
+                result += format!("br label %.for_cond.{}\n", for_counter).as_str();
                 result += "\n";
-                result += ".for_end:\n";
+                result += format!(".for_end.{}:\n", for_counter).as_str();
                 result
             },
             Subst(box ref lhs, box ref rhs, _) => {
