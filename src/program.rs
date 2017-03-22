@@ -13,6 +13,6 @@ use std::collections::HashMap;
 #[derive(Debug)]
 pub struct Program {
     pub functions: Vec<Function>,
-    pub types: HashMap<String, Type>,
+    pub structs: HashMap<String, Vec<(String, Type)>>,
 }
 

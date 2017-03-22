@@ -13,14 +13,14 @@ use expr::Expr;
 #[derive(Clone, PartialEq, Eq, Debug)]
 struct Env {
     variables: Vec<(String, Type)>,
-    types: HashMap<String, Type>
+    structs: HashMap<String, Vec<(String, Type)>>,
 }
 
 impl Env {
     fn new() -> Self {
         Env {
             variables: vec![],
-            types: HashMap::new()
+            structs: HashMap::new()
         }
     }
 
@@ -30,17 +30,14 @@ impl Env {
     fn append_variable(&mut self, mut args: Vec<(String, Type)>) {
         self.variables.append(&mut args);
     }
-    fn add_type(&mut self, name: String, ty: Type) {
-        self.types.insert(name, ty);
-    }
-    fn append_type(&mut self, args: HashMap<String, Type>) {
-        self.types.extend(args);
+    fn add_struct(&mut self, name: String, args: Vec<(String, Type)>) {
+        self.structs.insert(name, args);
     }
     fn lookup_var(&self, name: &String) -> Option<Type> {
         self.variables.iter().find(|ref e| e.0 == name.clone()).map(|ref e| e.1.clone())
     }
-    fn lookup_type(&self, name: &String) -> Option<Type> {
-        self.types.get(name).cloned()
+    fn lookup_struct(&self, name: &String) -> Option<Vec<(String, Type)>> {
+        self.structs.get(name).cloned()
     }
 }
 
@@ -49,8 +46,8 @@ pub fn type_check(program: &mut Program) {
     for ref func in &program.functions {
         env.add_variable(func.name.clone(), func.type_());
     }
-    for (name, ty) in program.types.iter() {
-        env.add_type(name.clone(), ty.clone());
+    for (name, param) in program.structs.iter() {
+        env.add_struct(name.clone(), param.clone());
     }
 
     for ref mut func in &mut program.functions {
@@ -158,17 +155,18 @@ fn type_check_impl(expr: &mut Expr, env: &Env) -> Result<Type, String> {
             }
         }
         Construct(ref name, ref mut args, ref mut info) => {
-            let struct_ty = env.lookup_type(name).unwrap();
-            match struct_ty {
-                Type::Struct(_, ref params) => {
-                    let args: Vec<_> = args.iter_mut().map(|&mut (ref name, ref mut e)| (name.clone(), type_check_impl(e, env).unwrap())).collect();
-                    if &args != params {
-                        return Err("type error: not match construct arg types".to_string());
-                    }
-                    info.type_ = Some(struct_ty.clone());
-                    Ok(struct_ty.clone())
-                },
-                _ => Err("can not construct non struct type".to_string())
+            if let Some(params) = env.lookup_struct(name) {
+                let args: Vec<_> = args.iter_mut()
+                    .map(|&mut (ref name, ref mut e)| (name.clone(), type_check_impl(e, env).unwrap()))
+                    .collect();
+                if args != params {
+                    return Err("type error: not match construct arg types".to_string());
+                }
+                let struct_ty = Type::Struct(name.clone(), params);
+                info.type_ = Some(struct_ty.clone());
+                Ok(struct_ty)
+            } else {
+                Err("can not construct non struct type".to_string())
             }
         }
         Dot(box ref mut e, ref name, ref mut info) => {

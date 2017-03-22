@@ -31,18 +31,13 @@ impl CodeGen {
     pub fn program(&mut self, program: &Program) -> String {
         let mut result = String::new();
 
-        for (_, ty) in &program.types {
-            match *ty {
-                Type::Struct(ref name, ref params) => {
-                    let params = params[1..].iter().fold(
-                        format!("{}", self.type_(&params[0].1)),
-                        |acc, &(_, ref ty)| {
-                            format!("{}, {}", acc, self.type_(ty))
-                        });
-                    result += format!("%{} = type {{ {} }}\n", name, params).as_str();
-                },
-                _ => ()
-            }
+        for (ref name, ref params) in program.structs.iter() {
+            let params = params[1..].iter().fold(
+                format!("{}", self.type_(&params[0].1)),
+                |acc, &(_, ref ty)| {
+                    format!("{}, {}", acc, self.type_(ty))
+                });
+            result += format!("%{} = type {{ {} }}\n", name, params).as_str();
         }
 
         result += "\n";

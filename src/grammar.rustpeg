@@ -11,23 +11,25 @@ use super::function::Function;
 use super::type_::Type;
 
 pub program -> Program
-  = tydef:type_define* f: function* {
-      let mut types = HashMap::new();
-      for (name, ty) in tydef {
-          types.insert(name ,ty);
+  = struct_defs:struct_define* f: function* {
+      let mut structs = HashMap::new();
+      for (name, params) in struct_defs {
+          structs.insert(name, params);
       }
       Program {
         functions: f,
-        types: types
+        structs: structs
       }
   }
 
-typedef_arg -> Vec<(String, Type)>
-  = (id:identifier ":" ty:type_ [,\n]? { (id, ty) })*
+struct_param -> (String, Type)
+    = id:identifier ":" ty: type_ spaces {
+        (id, ty)
+    }
 
-type_define -> (String, Type)
-  = spaces "type" spaces name:identifier spaces "=" spaces "struct" spaces "{" spaces arg:typedef_arg spaces "}" {
-      (name.clone(), Type::Struct(name, arg))
+struct_define -> (String, Vec<(String, Type)>)
+  = spaces "struct" spaces name:identifier spaces "{" spaces params:struct_param* spaces "}" {
+      (name, params)
   }
 
 type_list -> Vec<Type>
@@ -159,4 +161,6 @@ string -> String
   = "\"" s:$([^\"]*) "\"" { s.to_string() }
 
 spaces = [ \n\t]*
+
+line_spaces = [ \t]*
 
