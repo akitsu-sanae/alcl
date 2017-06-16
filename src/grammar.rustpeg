@@ -4,161 +4,127 @@
   Distributed under the Boost Software License, Version 1.0. (See accompanying
   file LICENSE or copy at http://www.boost.org/LICENSE_1_0.txt)
 ============================================================================*/
+
 use std::collections::HashMap;
-use super::expr::*;
-use super::program::Program;
-use super::function::Function;
-use super::type_::Type;
+use super::ast::*;
 
 pub program -> Program
-  = struct_defs:struct_define* f: function* {
-      let mut structs = HashMap::new();
-      for (name, params) in struct_defs {
-          structs.insert(name, params);
-      }
+  = __ struct_defs:struct_define* funcs:function* {
       Program {
-        functions: f,
-        structs: structs
+        functions: funcs,
+        struct_data: struct_defs,
       }
   }
 
-struct_param -> (String, Type)
-    = id:identifier ":" ty: type_ spaces {
-        (id, ty)
+struct_define -> StructType
+  = STRUCT name:identifier LBRACE data:(id:identifier COLON ty:type_ { (id, ty) })* {
+      StructType {
+        name: name,
+        data: data.into_iter().collect()
+      }
+  }
+
+type_ -> Type
+  = name:identifier {
+      match name.as_str() {
+          "Char" => Type::Char,
+          "Int" => Type::Int,
+          _ => Type::Struct(name)
+      }
+  }
+
+function -> Function
+  = FUNC name:identifier params:(name:identifier COLON ty:type_ { (name, ty) })* COLON ret_ty:type_ LBRACE body:function_body RBRACE {
+      Function {
+name: name,
+          args: params,
+          return_type: ret_ty,
+          body: body
+      }
+  }
+
+function_body -> (Vec<Statement>, Expr)
+    = stmts:statement* e:expr {
+        (stmts, e)
     }
 
-struct_define -> (String, Vec<(String, Type)>)
-  = spaces "struct" spaces name:identifier spaces "{" spaces params:struct_param* spaces "}" {
-      (name, params)
+statement -> Statement
+  = LET name:identifier EQUAL init:expr SEMICOLON {
+      Statement::Let(name, init)
+  }
+  / PRINTLN e:expr SEMICOLON {
+      Statement::Println(e)
+  }
+  / e:expr SEMICOLON {
+      Statement::Expression(e)
   }
 
-type_list -> Vec<Type>
-  = head: type_ tail:(spaces "," spaces ty:type_ { ty })* {
-      let mut result = tail;
-      result.insert(0, head);
-      result
-  }
-
-pub type_ -> Type
-  = spaces "(" spaces from:type_list spaces ")" spaces "->" spaces to:type_ {
-      Type::Function(box to, from)
-  }
-  / spaces name:identifier spaces "[" spaces ty:type_ spaces "]" spaces { Type::Generic(name, box ty) }
-  / spaces name:identifier spaces { Type::Primitive(name) }
-
-parameters -> Vec<(String, Type)>
-  = (id:identifier spaces ":" spaces ty: type_ {(id.to_string(), ty)})*
-
-
-pub function -> Function
-  = spaces "func" spaces name:identifier spaces params:parameters spaces ":" spaces ret_ty:type_ spaces "{" spaces body:expr spaces "}" spaces {
-      Function {
-        name: name,
-        args: params,
-        return_type: ret_ty,
-        body: body
-      }
-  }
-
-pub expr -> Expr
-  = spaces e:let_expr { e }
-
-let_expr -> Expr
-  = "let" spaces name:identifier spaces "=" spaces init:if_expr spaces ";" spaces body:expr {
-      Expr::Let(name, box init, box body, Info::new())
-  }
-  / sequence_expr
-
-sequence_expr -> Expr
-  = e1:if_expr spaces ";" spaces e2:sequence_expr {
-      Expr::Sequence(box e1, box e2, Info::new())
-  }
-  / if_expr
-
-else_ifs -> Vec<(Expr, Expr)>
-  = ("if" cond:subst_expr "{" body:expr "}" spaces "else" spaces { (cond, body) })*
+expr -> Expr
+  = if_expr
 
 if_expr -> Expr
-  = "if" cond: subst_expr "{" tr:expr "}" spaces "else" spaces elsif:else_ifs "{" fl:expr "}" {
-      Expr::If(box cond, box tr, elsif, box fl, Info::new())
+  = IF LPAREN cond:bin_expr RPAREN tr:expr ELSE fl:expr {
+      Expr::If(box cond, box tr, box fl)
   }
-  / for_expr
+  / bin_expr
 
-for_expr -> Expr
-  = "for" spaces idx:identifier spaces "in" spaces start:if_expr spaces ".." spaces last:if_expr spaces "{" spaces body:expr spaces "}" spaces {
-      Expr::For(idx, box start, box last, box body, Info::new())
+bin_expr -> Expr
+  = #infix<primary_expr> {
+    #L l PLUS r { Expr::Add(box l, box r) }
+       l MINUS r { Expr::Sub(box l, box r) }
+    #L l STAR r { Expr::Mult(box l, box r) }
+       l SLASH r { Expr::Div(box l, box r) }
   }
-  / println_expr
-
-println_expr -> Expr
-  = "println" spaces e:bin_op_expr {
-      Expr::Println(box e, Info::new())
-  }
-  / subst_expr
-
-subst_expr -> Expr
-  = lhs:dot_expr spaces "=" spaces rhs:subst_expr {
-      Expr::Subst(box lhs, box rhs, Info::new())
-  }
-  / bin_op_expr
-
-bin_op_expr -> Expr
-  = #infix<apply_expr> {
-    #L l "==" r { Expr::Equal(box l, box r, Info::new()) }
-       l "!=" r { Expr::NotEqual(box l, box r, Info::new()) }
-    #L l "+" r { Expr::Add(box l, box r, Info::new()) }
-       l "-" r { Expr::Sub(box l, box r, Info::new()) }
-    #L l "*" r { Expr::Mult(box l, box r, Info::new()) }
-       l "/" r { Expr::Div(box l, box r, Info::new()) }
-       l "%" r { Expr::Surplus(box l, box r, Info::new()) }
-  }
-
-arguments -> Vec<Expr>
-  = head:expr tail:("," e:expr { e })* {
-      let mut result = tail;
-      result.insert(0, head);
-      result
-  }
-
-apply_expr -> Expr
-  = acc:construct_expr args:("(" arg:arguments ")" { arg })* {
-      args.iter().fold(acc, |e, arg| {
-          Expr::Apply(box e, arg.clone(), Info::new())
-      })
-  }
-  / construct_expr
-
-construct_arg -> Vec<(String, Expr)>
-  = (id:identifier ":" e:expr [,\n]? { (id, e) })*
-
-construct_expr -> Expr
-  = name:identifier spaces "{" spaces arg: construct_arg spaces "}" spaces {
-      Expr::Construct(name, arg, Info::new())
-  }
-  / dot_expr
-
-dot_expr -> Expr
-  = acc:primary_expr ids: ("." id:identifier {id})* {
-      ids.iter().fold(acc, |e, id| {
-          Expr::Dot(box e, id.clone(), Info::new())
-      })
-  }
-  / primary_expr
 
 primary_expr -> Expr
-  = spaces n:number spaces { Expr::Number(n, Info::new()) }
-  / spaces id:identifier spaces { Expr::Identifier(id, Info::new()) }
-  / spaces str:string spaces { Expr::String(str, Info::new()) }
-  / spaces "(" spaces e:expr spaces ")" spaces { e }
+  = v:literal  { Expr::Literal(v) }
+  / LBRACE e:expr RBRACE { e }
+  / name:identifier { Expr::Var(name) }
 
-number -> i64
-  = n:$([0-9]+) { n.parse().unwrap() }
+literal -> Literal
+  = SINGLE_QUOTE c:$(.) SINGLE_QUOTE { Literal::Char(c.chars().nth(0).unwrap()) }
+  / n:number { Literal::Int(n) }
+  / str:string { Literal::String(str) }
+  / NEW name:identifier LBRACE data:(name:identifier COLON e:expr { (name, e) })* RBRACE {
+      Literal::Struct(StructLiteral {
+            name: name,
+            data: data.into_iter().collect()
+          })
+  }
+
+__ = [ \n\t]*
+
+PLUS = "+" __
+MINUS = "-" __
+STAR = "*" __
+SLASH = "/" __
+EQUAL = "=" __
+LPAREN = "(" __
+RPAREN = ")" __
+LBRACE = "{" __
+RBRACE = "}" __
+COLON = ":" __
+SEMICOLON = ";" __
+SINGLE_QUOTE = "'" __
+
+keyword<E> = E !([a-zA-Z0-9_]) __
+
+STRUCT = keyword<"struct">
+FUNC = keyword<"func">
+LET = keyword<"let">
+IF = keyword<"if">
+ELSE = keyword<"else">
+NEW = keyword<"new">
+PRINTLN = keyword<"println">
+
+number -> i32
+  = n:$([0-9]+) __ { n.parse().unwrap() }
 
 identifier -> String
-  = s:$([a-zA-Z_][a-zA-Z0-9_]*) { s.to_string() }
+  = s:$([a-zA-Z_][a-zA-Z0-9_]*) __ { s.to_string() }
 
 string -> String
-  = "\"" s:$([^\"]*) "\"" { s.to_string() }
+  = "\"" s:$([^\"]*) "\"" __ { s.to_string() }
 
 spaces = [ \n\t]*
 

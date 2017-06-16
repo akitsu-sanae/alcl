@@ -5,337 +5,109 @@
   file LICENSE or copy at http://www.boost.org/LICENSE_1_0.txt)
 ============================================================================*/
 
-use expr::Expr;
-use function::Function;
-use type_::Type;
-use program::Program;
+use std::ffi::CString;
 
-use std::collections::HashMap;
+use std::ptr;
+use kazuma;
+use ast;
 
-pub struct CodeGen {
-    variable_counter: i32,
-    if_counter: i32,
-    for_counter: i32,
-    //                         name   ret_type arg_type
-    global_declares : HashMap<String, (String, String)>,
-    string_literals: Vec<String>
+pub fn code_generate(program: &ast::Program) {
+    let module = module(program);
+    let builder = kazuma::Builder::new("test");
+    match builder.module(&module) {
+        Ok(result) => println!("{}", result),
+        Err(msg) => println!("error: {}", msg),
+    }
 }
 
-impl CodeGen {
-    pub fn new() -> Self {
-        CodeGen {
-            variable_counter: 0,
-            if_counter: 0,
-            for_counter: 0,
-            global_declares: HashMap::new(),
-            string_literals: vec![]
-        }
+fn module(program: &ast::Program) -> kazuma::ast::Module {
+    kazuma::ast::Module {
+        functions: program.functions.iter().map(function).collect()
     }
+}
 
-    pub fn program(&mut self, program: &Program) -> String {
-        let mut result = String::new();
-
-        for (ref name, ref params) in program.structs.iter() {
-            let params = params[1..].iter().fold(
-                format!("{}", self.type_(&params[0].1)),
-                |acc, &(_, ref ty)| {
-                    format!("{}, {}", acc, self.type_(ty))
-                });
-            result += format!("%{} = type {{ {} }}\n", name, params).as_str();
-        }
-
-        result += "\n";
-
-        for ref func in &program.functions {
-            result += self.function(&func).as_str();
-        }
-
-        for ref declare in &self.global_declares {
-            let ref ty = declare.1;
-            let (name, ret_ty, arg_ty) = (&declare.0, &ty.0, &ty.1);
-            result += format!("declare {} @{}({})\n", ret_ty, name, arg_ty).as_str();
-        }
-        for (i, str) in self.string_literals.iter().enumerate() {
-            result += format!("@.str.{} = private unnamed_addr constant [{} x i8] c\"{}\\00\", align 1\n", i, str.len()+1, str).as_str();
-        }
-        result
+fn type_(ty: &ast::Type) -> kazuma::ast::Type {
+    match *ty {
+        ast::Type::Char => panic!("unimplemented"),
+        ast::Type::Int => kazuma::ast::Type::Integer,
+        ast::Type::Struct(_) => panic!("unimplemented"),
     }
+}
 
-    pub fn function(&mut self, func: &Function) -> String {
-        let mut result = format!("define {} @{} ({}) {{\n",
-            self.type_(&func.return_type),
-            func.name,
-            self.parameters(&func.args)
-        );
-        for (i, args) in func.args.iter().enumerate() {
-            let (ty, align) = (self.type_(&args.1), args.1.align());
-            result += format!("  %{} = alloca {}, align {}\n", args.0, ty, align).as_str();
-            result += format!("  store {} %.arg{}, {}* %{}, align {}\n", ty, i, ty, args.0, align).as_str();
-        }
-        self.variable_counter = 0;
-        result += self.expression(&func.body).as_str();
-        let ty = self.type_(&func.body.type_().unwrap());
-        if ty != "void" {
-            result += format!("  ret {} %{}\n", ty, self.variable_counter).as_str();
-        } else {
-            result += "  ret void\n";
-        }
-        result += "}\n";
-        result
-    }
+fn argument(args: &Vec<(String, ast::Type)>) -> Vec<(String, kazuma::ast::Type)> {
+    args.iter()
+        .map(|&(ref name, ref ty)| {
+            (name.clone(), type_(ty))
+        })
+        .collect()
+}
 
-    pub fn type_(&mut self, ty: &Type) -> String {
-        match *ty {
-            Type::Primitive(ref name) => {
-                match name.as_str() {
-                    "Bool" => "i1".to_string(),
-                    "Int" => "i32".to_string(),
-                    "Unit" => "void".to_string(),
-                    "RawString" | "String" => "i8*".to_string(),
-                    _ => "<unimplemented primitive type>".to_string() // TODO
-                }
-            },
-            Type::Generic(ref name, box ref inner_type) => {
-                match name.as_str() {
-                    "List" | "Array" => {
-                        format!("{}*", self.type_(inner_type))
-                    },
-                    _ => "<unimplemented generic type>".to_string() // TODO
-                }
-            },
-            Type::Struct(ref name, _) => format!("%{}", name),
-            _ => "<unimplemented type>".to_string() // TODO
-        }
-    }
-
-    pub fn parameters(&mut self, args: &Vec<(String, Type)>) -> String {
-        if args.is_empty() {
-            "".to_string()
-        } else {
-            args[1..].iter().enumerate().fold(
-                format!("{} %.arg0", self.type_(&args[0].1)),
-                |acc, (i, arg)| format!("{}, {} %.arg{}", acc, self.type_(&arg.1), i+1)
-            )
-        }
-    }
-
-    pub fn expression(&mut self, e: &Expr) -> String {
-        use expr::Expr::*;
-        match *e {
-            Let(ref id, box ref init, box ref body, _) => {
-                let init_ty = init.type_().unwrap();
-                let mut result = self.expression(init);
-                let init_var = self.variable_counter;
-                let (init_ty, align) = (self.type_(&init_ty), init_ty.align());
-                result += format!("  %{} = alloca {}, align {}\n", id, init_ty, align).as_str();
-                result += format!("  store {} %{}, {}* %{}, align {}\n", init_ty, init_var, init_ty, id, align).as_str();
-                result += self.expression(body).as_str();
-                result
-            },
-            Sequence(box ref e1, box ref e2, _) => {
-                let e1 = self.expression(e1);
-                let e2 = self.expression(e2);
-                format!("{}{}", e1, e2)
-            },
-            If(box ref cond, box ref tr, ref else_ifs, box ref fl, _) => {
-                self.if_counter += 1;
-                let if_counter = self.if_counter;
-                let mut result = "".to_string();
-                result += self.expression(cond).as_str();
-                if else_ifs.len() == 0 {
-                    result += format!("  br i1 %{}, label %.if.then.{}, label %.if.else.{}\n", self.variable_counter, if_counter, if_counter).as_str();
-                    result += "\n";
-                    result += format!(".if.then.{}:\n", if_counter).as_str();
-                    result += self.expression(tr).as_str();
-                    result += format!("  br label %.if.end.{}\n", if_counter).as_str();
-                    result += "\n";
-                    result += format!(".if.else.{}:\n", if_counter).as_str();
-                    result += self.expression(fl).as_str();
-                    result += format!("  br label %.if.end.{}\n", if_counter).as_str();
-                    result += "\n";
-                    result += format!(".if.end.{}:\n", if_counter).as_str();
-                } else {
-                    result += format!("  br i1 %{}, label %.if.then.{}, label %.if.else_if.0.cond.{}\n", self.variable_counter, if_counter, if_counter).as_str();
-                    result += "\n";
-                    result += format!(".if.then.{}:\n", if_counter).as_str();
-                    result += self.expression(tr).as_str();
-                    result += format!("  br label %.if.end.{}\n", if_counter).as_str();
-                    result += "\n";
-                    for (i, else_if) in else_ifs.iter().enumerate() {
-                        result += format!(".if.else_if.{}.cond.{}:\n", i, if_counter).as_str();
-                        result += self.expression(&else_if.0).as_str();
-                        let after = if i + 1 == else_ifs.len() {
-                            format!(".if.else.{}", if_counter)
-                        } else {
-                            format!(".if.else_if.{}.cond.{}", i+1, if_counter)
-                        };
-                        result += format!("  br i1 %{}, label %.if.else_if.{}.body.{}, label %{}\n", self.variable_counter, i, if_counter, after).as_str();
-                        result += "\n";
-                        result += format!(".if.else_if.{}.body.{}:\n", i, self.if_counter).as_str();
-                        result += self.expression(&else_if.1).as_str();
-                        result += format!("  br label %.if.end.{}\n", if_counter).as_str();
-                        result += "\n";
-                    }
-                    result += format!(".if.else.{}:\n", if_counter).as_str();
-                    result += self.expression(fl).as_str();
-                    result += format!("  br label %.if.end.{}\n", if_counter).as_str();
-                    result += "\n";
-                    result += format!(".if.end.{}:\n", if_counter).as_str();
-                }
-                result
-            },
-            For(ref name, box ref from, box ref to, box ref expr, _) => {
-                self.for_counter += 1;
-                let for_counter = self.for_counter;
-                let mut result = self.expression(from);
-                let from_var = self.variable_counter;
-                if for_counter == 1 {
-                    result += format!("  %{} = alloca i32, align 4\n", name).as_str();
-                }
-                result += format!("  store i32 %{}, i32* %{}, align 4\n", from_var, name).as_str();
-                result += format!("  br label %.for_cond.{}\n", for_counter).as_str();
-                result += "\n";
-                result += format!(".for_cond.{}:\n", for_counter).as_str();
-                self.variable_counter += 1;
-                result += format!("  %{} = load i32, i32* %{}, align 4\n", self.variable_counter, name).as_str();
-                let index_var = self.variable_counter;
-                result += self.expression(to).as_str();
-                let to_var = self.variable_counter;
-                self.variable_counter += 1;
-                result += format!("  %{} = icmp sle i32 %{}, %{}\n", self.variable_counter, index_var, to_var).as_str();
-                result += format!("  br i1 %{}, label %.for_body.{}, label %.for_end.{}\n", self.variable_counter, for_counter, for_counter).as_str();
-                result += "\n";
-                result += format!(".for_body.{}:\n", for_counter).as_str();
-                result += self.expression(expr).as_str();
-                self.variable_counter += 1;
-                result += format!("  %{} = load i32, i32* %i, align 4\n", self.variable_counter).as_str();
-                self.variable_counter += 1;
-                result += format!("  %{} = add i32 %{}, 1", self.variable_counter, self.variable_counter-1).as_str();
-                result += format!("  store i32 %{}, i32* %{}, align 4\n", self.variable_counter, name).as_str();
-                result += format!("br label %.for_cond.{}\n", for_counter).as_str();
-                result += "\n";
-                result += format!(".for_end.{}:\n", for_counter).as_str();
-                result
-            },
-            Subst(box ref lhs, box ref rhs, _) => {
-                let ty = rhs.type_().unwrap();
-                let (ty, align) = (self.type_(&ty), ty.align());
-                let mut result = self.expression(rhs);
-                let rhs_var = self.variable_counter;
-                if let &Expr::Identifier(ref name, _) = lhs {
-                    result += format!("  store {} %{}, {}* %{}, align {}", ty, rhs_var, ty, name, align).as_str();
-                } else {
-                    result += self.expression(lhs).as_str();
-                    let lhs_var = self.variable_counter;
-                    result += format!("  store {} %{}, {}* %{}, align {}\n", ty, rhs_var, ty, lhs_var, align).as_str();
-                }
-                result
-            },
-            Equal(box ref lhs, box ref rhs, _) | NotEqual(box ref lhs, box ref rhs, _) |
-            Add(box ref lhs, box ref rhs, _) | Sub(box ref lhs, box ref rhs, _) |
-            Mult(box ref lhs, box ref rhs, _) | Div(box ref lhs, box ref rhs, _) |
-            Surplus(box ref lhs, box ref rhs, _) => {
-                let mut result = self.expression(lhs);
-                let lhs = self.variable_counter;
-                result += self.expression(rhs).as_str();
-                let rhs = self.variable_counter;
-                self.variable_counter += 1;
-                result += format!("  %{} = {} i32 %{}, %{}\n", self.variable_counter, e.operand(), lhs, rhs).as_str();
-                result
-            },
-            Apply(box ref f, ref args, ref info) => {
-                if let &Expr::Identifier(ref name, _) = f {
-                    let mut result = "".to_string();
-                    let args: Vec<_> = args.iter().map(|arg| {
-                        result += self.expression(&arg).as_str();
-                        (self.type_(&arg.type_().unwrap()), self.variable_counter)
-                    }).collect();
-                    let args = args[1..].iter().fold(
-                        format!("{} %{}", args[0].0, args[0].1),
-                        |acc, &(ref ty, ref var)| {
-                            format!("{}, {} %{}", acc, ty, var)
-                        });
-                    let ret_ty = self.type_(&info.clone().type_.unwrap());
-                    self.variable_counter += 1;
-                    result += format!("  %{} = call {} @{}({})\n", self.variable_counter, ret_ty, name, args).as_str();
-                    result
-                } else {
-                    panic!("nyan")
-                }
-            },
-            Construct(ref name, ref args, ref info) => {
-                let align = info.clone().type_.unwrap().align();
-                self.variable_counter += 1;
-                let mut result = format!("  %{} = alloca %{}, align {}\n", self.variable_counter, name, align);
-                let var = self.variable_counter;
-
-                for (i, &(_, ref arg)) in args.iter().enumerate() {
-                    let arg_ty = arg.type_().unwrap();
-                    let arg_align = arg_ty.align();
-                    let arg_ty = self.type_(&arg_ty);
-                    self.variable_counter += 1;
-                    result += format!("  %{} = getelementptr inbounds %{}, %{}* %{}, i32 0, i32 {}\n", self.variable_counter, name, name, var, i).as_str();
-                    let target_ptr = self.variable_counter;
-                    result += self.expression(arg).as_str();
-                    let arg_var = self.variable_counter;
-                    result += format!("  store {} %{}, {}* %{}, align {}\n",
-                                      arg_ty, arg_var, arg_ty, target_ptr, arg_align).as_str();
-                }
-                self.variable_counter += 1;
-                result += format!("  %{} = load %{}, %{}* %{}, align {}\n", self.variable_counter, name, name, var, align).as_str();
-                result
-            },
-            Dot(box ref expr, ref name, _) => {
-                let expr_ty = expr.type_().unwrap();
-                match expr_ty {
-                    Type::Struct(ref struct_name, ref data) => {
-                        let pos = data.iter().position(|branch| {
-                            &branch.0 == name
-                        }).unwrap();
-                        let mut result = self.expression(expr);
-                        let struct_var = self.variable_counter;
-                        self.variable_counter += 1;
-                        result += format!("  %{} = getelementptr inbounds %{}, %{}* %{}, i32 0, i32 {}\n",
-                                self.variable_counter, struct_name, struct_name, struct_var, pos).as_str();
-                        result
-                    },
-                    _ => panic!("can not apply dor expr for non struct expr: {:?}", expr_ty)
-                }
-            },
-            Println(box ref expr, _) => {
-                self.global_declares.insert("puts".to_string(), ("i32".to_string(), "i8*".to_string()));
-                let mut result = self.expression(expr);
-                let var = self.variable_counter;
-                self.variable_counter += 1;
-                result += format!("  %{} = call i32 @puts(i8* %{})\n", self.variable_counter, var).as_str();
-                result
-            },
-            Number(ref n, _) => {
-                self.variable_counter += 1;
-                let mut result = format!("  %{} = alloca i32, align 4\n", self.variable_counter);
-                result += format!("  store i32 {}, i32* %{}, align 4\n", n, self.variable_counter).as_str();
-                self.variable_counter += 1;
-                result += format!("  %{} = load i32, i32* %{}, align 4\n", self.variable_counter, self.variable_counter-1).as_str();
-                result
-            },
-            String(ref str, _) => {
-                self.string_literals.push(str.clone());
-                self.variable_counter += 1;
-                let mut result = format!("  %{} = alloca i8*, align 8\n", self.variable_counter);
-                result += format!("  store i8* getelementptr inbounds ([{} x i8], [{} x i8]* @.str.{}, i32 0, i32 0), i8** %{}, align 4\n",
-                    str.len()+1, str.len()+1, self.string_literals.len()-1, self.variable_counter).as_str();
-                self.variable_counter += 1;
-                result += format!("  %{} = load i8*, i8** %{}, align 8\n", self.variable_counter, self.variable_counter-1).as_str();
-                result
-            },
-            Identifier(ref name, ref info) => {
-                self.variable_counter += 1;
-                let ty = info.clone().type_.unwrap();
-                let (ty, align) = (self.type_(&ty), ty.align());
-                format!("  %{} = load {}, {}* %{}, align {}\n", self.variable_counter, ty, ty, name, align)
-            },
-            _ => "<unimplemented expr>\n".to_string() // TODO
+fn function(func: &ast::Function) -> kazuma::ast::Function {
+    kazuma::ast::Function {
+        name: func.name.clone(),
+        arguments: argument(&func.args),
+        return_type: type_(&func.return_type),
+        body: {
+            let (ref statements, ref expr) = func.body;
+            statements.iter()
+                .rev()
+                .fold(expression(expr), |e, stmt| {
+                    kazuma::ast::Expression::BinOp(
+                        kazuma::ast::BinaryOperator::Sequent,
+                        box statement(stmt), box e)
+                })
         }
     }
 }
 
+// TODO
+fn type_of_expr(expr: &ast::Expr) -> kazuma::ast::Type {
+    kazuma::ast::Type::Integer
+}
+
+fn statement(stmt: &ast::Statement) -> kazuma::ast::Expression {
+    match *stmt {
+        ast::Statement::Let(ref name, ref init) => {
+            let ty = type_of_expr(&init);
+            let init = expression(init);
+            kazuma::ast::Expression::Let(name.clone(), ty, box init)
+        },
+        ast::Statement::Println(ref expr) => kazuma::ast::Expression::Print(box expression(expr)),
+        ast::Statement::Expression(ref expr) => expression(expr),
+    }
+}
+
+fn binary_operation(e: &ast::Expr) -> Option<kazuma::ast::BinaryOperator> {
+    use ast::Expr::*;
+    match *e {
+        Add(_, _) => Some(kazuma::ast::BinaryOperator::Add),
+        Sub(_, _) => Some(kazuma::ast::BinaryOperator::Sub),
+        Mult(_, _) => Some(kazuma::ast::BinaryOperator::Mult),
+        Div(_, _) => Some(kazuma::ast::BinaryOperator::Div),
+        _ => None,
+    }
+}
+
+fn expression(expr: &ast::Expr) -> kazuma::ast::Expression {
+    use ast::Expr::*;
+    match *expr {
+        Add(box ref lhs, box ref rhs) | Sub(box ref lhs, box ref rhs) |
+        Mult(box ref lhs, box ref rhs) | Div(box ref lhs, box ref rhs) => {
+            let op = binary_operation(expr).unwrap();
+            let lhs = expression(lhs);
+            let rhs = expression(rhs);
+            kazuma::ast::Expression::BinOp(op, box lhs, box rhs)
+        },
+        If(_, _, _) => panic!("unimplemented: if"),
+        Literal(ref lit) => kazuma::ast::Expression::Literal(literal(lit)),
+        Var(ref name) => kazuma::ast::Expression::Variable(name.clone()),
+    }
+}
+
+fn literal(lit: &ast::Literal) -> kazuma::ast::Literal {
+    match *lit {
+        ast::Literal::Char(_) | ast::Literal::Struct(_) => panic!("unimplemented literal"),
+        ast::Literal::Int(ref n) => kazuma::ast::Literal::Integer(*n),
+        ast::Literal::String(ref str) => kazuma::ast::Literal::String(str.clone()),
+    }
+}
