@@ -5,9 +5,6 @@
   file LICENSE or copy at http://www.boost.org/LICENSE_1_0.txt)
 ============================================================================*/
 
-use std::ffi::CString;
-
-use std::ptr;
 use kazuma;
 use ast;
 
