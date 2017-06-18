@@ -63,55 +63,55 @@ fn type_check_impl(expr: &mut Expr, env: &Env) -> Result<Type, String> {
     use expr::Expr::*;
     match *expr {
         Let(ref name, box ref mut init, box ref mut body, ref mut info) => {
-            let ty = try!(type_check_impl(init, env));
+            let ty = type_check_impl(init, env)?;
             let mut env = env.clone();
             env.add_variable(name.clone(), ty);
-            let ty = try!(type_check_impl(body, &env));
+            let ty = type_check_impl(body, &env)?;
             info.type_ = Some(ty.clone());
             Ok(ty)
         },
         Sequence(box ref mut e1, box ref mut e2, ref mut info) => {
-            try!(type_check_impl(e1, env));
-            let ty = try!(type_check_impl(e2, env));
+            type_check_impl(e1, env)?;
+            let ty = type_check_impl(e2, env)?;
             info.type_ = Some(ty.clone());
             Ok(ty)
         },
         If(box ref mut cond, box ref mut tr, ref mut else_if, box ref mut fl, ref mut info) => {
-            let cond = try!(type_check_impl(cond, env));
+            let cond = type_check_impl(cond, env)?;
             if cond != Type::boolean() {
                 return Err("if condition must be boolean".to_string())
             }
-            let ret_ty = try!(type_check_impl(tr, env));
+            let ret_ty = type_check_impl(tr, env)?;
             for ref mut else_if in else_if {
-                let cond = try!(type_check_impl(&mut else_if.0, env));
+                let cond = type_check_impl(&mut else_if.0, env)?;
                 if cond != Type::boolean() {
                     return Err("if condition must be boolean".to_string())
                 }
-                if ret_ty != try!(type_check_impl(&mut else_if.1, env)) {
+                if ret_ty != type_check_impl(&mut else_if.1, env)? {
                     return Err("if result must have same type".to_string());
                 }
             }
-            if ret_ty != try!(type_check_impl(fl, env)) {
+            if ret_ty != type_check_impl(fl, env)? {
                 return Err("if result must hasve same type".to_string());
             }
             info.type_ = Some(ret_ty.clone());
             Ok(ret_ty)
         },
         For(ref mut index, box ref mut from, box ref mut to, box ref mut body, ref mut info) => {
-            let from_ty = try!(type_check_impl(from, env));
-            let to_ty = try!(type_check_impl(to, env));
+            let from_ty = type_check_impl(from, env)?;
+            let to_ty = type_check_impl(to, env)?;
             if from_ty != to_ty {
                 return Err("type error in for expression: from expr and to expr must have same type ".to_string());
             }
             let mut env = env.clone();
             env.add_variable(index.clone(), from_ty);
-            try!(type_check_impl(body, &env));
+            type_check_impl(body, &env)?;
             info.type_ = Some(Type::unit());
             Ok(Type::unit())
         },
         Subst(box ref mut lhs, box ref mut rhs, ref mut info) => {
-            let lhs = try!(type_check_impl(lhs, env));
-            let rhs = try!(type_check_impl(rhs, env));
+            let lhs = type_check_impl(lhs, env)?;
+            let rhs = type_check_impl(rhs, env)?;
             if lhs != rhs {
                 Err("type error in subst expr: lhs and rhs have different types.".to_string())
             } else {
@@ -121,8 +121,8 @@ fn type_check_impl(expr: &mut Expr, env: &Env) -> Result<Type, String> {
         },
         Equal(box ref mut lhs, box ref mut rhs, ref mut info) |
         NotEqual(box ref mut lhs, box ref mut rhs, ref mut info) => {
-            let lhs = try!(type_check_impl(lhs, env));
-            let rhs = try!(type_check_impl(rhs, env));
+            let lhs = type_check_impl(lhs, env)?;
+            let rhs = type_check_impl(rhs, env)?;
             if lhs != rhs {
                 Err("lhs and rhs must have same type".to_string())
             } else {
@@ -133,8 +133,8 @@ fn type_check_impl(expr: &mut Expr, env: &Env) -> Result<Type, String> {
         Add(box ref mut lhs, box ref mut rhs, ref mut info) | Sub(box ref mut lhs, box ref mut rhs, ref mut info) |
         Mult(box ref mut lhs, box ref mut rhs, ref mut info) | Div(box ref mut lhs, box ref mut rhs, ref mut info) |
         Surplus(box ref mut lhs, box ref mut rhs, ref mut info) => {
-            let lhs = try!(type_check_impl(lhs, env));
-            let rhs = try!(type_check_impl(rhs, env));
+            let lhs = type_check_impl(lhs, env)?;
+            let rhs = type_check_impl(rhs, env)?;
             if lhs != rhs {
                 Err("lhs and rhs must have same type".to_string())
             } else {
@@ -143,7 +143,7 @@ fn type_check_impl(expr: &mut Expr, env: &Env) -> Result<Type, String> {
             }
         },
         Apply(box ref mut f, ref mut args, ref mut info) => {
-            if let Type::Function(box ref mut ret_ty, ref mut params_ty) = try!(type_check_impl(f, env)) {
+            if let Type::Function(box ref mut ret_ty, ref mut params_ty) = type_check_impl(f, env)? {
                 let args: Vec<_> = args.iter_mut().map(|e| type_check_impl(e, env).unwrap()).collect();
                 if &args != params_ty {
                     return Err("type error: not match function arg types".to_string())
@@ -180,7 +180,7 @@ fn type_check_impl(expr: &mut Expr, env: &Env) -> Result<Type, String> {
             }
         }
         Println(box ref mut expr, ref mut info) => {
-            if try!(type_check_impl(expr, env)) != Type::string() {
+            if type_check_impl(expr, env)? != Type::string() {
                 Err("println expr accepts only string expr".to_string())
             } else {
                 info.type_ = Some(Type::unit());
