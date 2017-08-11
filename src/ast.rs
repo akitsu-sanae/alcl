@@ -60,7 +60,7 @@ pub struct StructLiteral {
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Literal {
     Char(char),
-    Int(i32),
+    Int(i64),
     String(String),
     Struct(StructLiteral)
 }

@@ -116,7 +116,7 @@ ELSE = keyword<"else">
 NEW = keyword<"new">
 PRINTLN = keyword<"println">
 
-number -> i32
+number -> i64
   = n:$([0-9]+) __ { n.parse().unwrap() }
 
 identifier -> String
