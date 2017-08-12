@@ -16,7 +16,7 @@ pub program -> Program
   }
 
 struct_define -> StructType
-  = STRUCT name:identifier LBRACE data:(id:identifier COLON ty:type_ { (id, ty) })* {
+  = STRUCT name:identifier LBRACE data:(id:identifier COLON ty:type_ { (id, ty) })* RBRACE {
       StructType {
         name: name,
         data: data.into_iter().collect()

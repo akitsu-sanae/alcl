@@ -10,7 +10,7 @@ use ast;
 
 pub fn code_generate(program: &ast::Program) {
     let module = module(program);
-    let builder = kazuma::builder::Builder::new("test");
+    let mut builder = kazuma::builder::Builder::new("test");
     match builder.build(&module) {
         Ok(result) => println!("{}", result),
         Err(msg) => println!("error: {}", msg),
@@ -19,6 +19,7 @@ pub fn code_generate(program: &ast::Program) {
 
 fn module(program: &ast::Program) -> kazuma::ast::Module {
     kazuma::ast::Module {
+        structs: program.struct_data.iter().map(struct_).collect(),
         functions: program.functions.iter().map(function).collect()
     }
 }
@@ -27,7 +28,16 @@ fn type_(ty: &ast::Type) -> kazuma::ast::Type {
     match *ty {
         ast::Type::Char => panic!("unimplemented"),
         ast::Type::Int => kazuma::ast::Type::Int32,
-        ast::Type::Struct(_) => panic!("unimplemented"),
+        ast::Type::Struct(ref name) => kazuma::ast::Type::Struct(name.clone()),
+    }
+}
+
+fn struct_(strct: &ast::StructType) -> kazuma::ast::Struct {
+    kazuma::ast::Struct {
+        name: strct.name.clone(),
+        fields: strct.data.iter().map(|(name, ty)| {
+            (name.clone(), type_(ty))
+        }).collect(),
     }
 }
 
@@ -94,7 +104,12 @@ fn expression(expr: &ast::Expr) -> kazuma::ast::Expression {
 fn literal(lit: &ast::Literal) -> kazuma::ast::Expression {
     use ast::Literal::*;
     match *lit {
-        Char(_) | String(_) | Struct(_) => panic!("unimplemented literal"),
+        Char(_) | String(_) => panic!("unimplemented literal"),
         Int(ref n) => kazuma::ast::Expression::Int(*n),
+        Struct(ref struct_literal) => {
+            let ast::StructLiteral{ref name, ref data} = *struct_literal;
+            let data = data.iter().map(|(name, x)| (name.clone(), expression(x))).collect();
+            kazuma::ast::Expression::Struct(name.clone(), data)
+        },
     }
 }
