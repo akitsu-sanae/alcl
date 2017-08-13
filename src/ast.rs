@@ -30,38 +30,20 @@ pub struct Function {
     pub name: String,
     pub args: Vec<(String, Type)>,
     pub return_type: Type,
-    pub body: (Vec<Statement>, Expr)
-}
-
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub enum  Statement {
-    Let(String, Expr),
-    Println(Expr),
-    Expression(Expr)
+    pub body: Expr,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Expr {
+    Let(String, Box<Expr>),
+    Block(Vec<Expr>),
     Add(Box<Expr>, Box<Expr>),
     Sub(Box<Expr>, Box<Expr>),
     Mult(Box<Expr>, Box<Expr>),
     Div(Box<Expr>, Box<Expr>),
     If(Box<Expr>, Box<Expr>, Box<Expr>),
-    Literal(Literal),
-    Var(String)
-}
-
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub struct StructLiteral {
-    pub name: String,
-    pub data: HashMap<String, Expr>,
-}
-
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub enum Literal {
-    Char(char),
+    Var(String),
     Int(i64),
-    String(String),
-    Struct(StructLiteral)
+    Struct(String, HashMap<String, Expr>),
 }
 

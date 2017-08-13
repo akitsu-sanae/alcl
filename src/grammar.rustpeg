@@ -16,15 +16,15 @@ pub program -> Program
   }
 
 struct_define -> StructType
-  = STRUCT name:identifier LBRACE data:(id:identifier COLON ty:type_ { (id, ty) })* RBRACE {
+  = STRUCT name:type_name LBRACE data:(id:variable_name COLON ty:type_ { (id, ty) })* RBRACE {
       StructType {
         name: name,
-        data: data.into_iter().collect()
+        data: data.into_iter().collect(),
       }
   }
 
 type_ -> Type
-  = name:identifier {
+  = name:type_name {
       match name.as_str() {
           "Char" => Type::Char,
           "Int" => Type::Int,
@@ -33,7 +33,7 @@ type_ -> Type
   }
 
 function -> Function
-  = FUNC name:identifier params:(name:identifier COLON ty:type_ { (name, ty) })* COLON ret_ty:type_ LBRACE body:function_body RBRACE {
+  = FUNC name:variable_name params:(name:variable_name COLON ty:type_ { (name, ty) })* COLON ret_ty:type_ body:block_expr {
       Function {
 name: name,
           args: params,
@@ -42,28 +42,21 @@ name: name,
       }
   }
 
-function_body -> (Vec<Statement>, Expr)
-    = stmts:statement* e:expr {
-        (stmts, e)
-    }
-
-statement -> Statement
-  = LET name:identifier EQUAL init:expr SEMICOLON {
-      Statement::Let(name, init)
-  }
-  / PRINTLN e:expr SEMICOLON {
-      Statement::Println(e)
-  }
-  / e:expr SEMICOLON {
-      Statement::Expression(e)
-  }
-
 expr -> Expr
+  = let_expr
+
+let_expr -> Expr
+  = LET name:variable_name EQUAL init:inline_expr {
+    Expr::Let(name, box init)
+  }
+  /inline_expr
+
+inline_expr -> Expr
   = if_expr
 
 if_expr -> Expr
-  = IF LPAREN cond:bin_expr RPAREN tr:expr ELSE fl:expr {
-      Expr::If(box cond, box tr, box fl)
+  = IF cond:bin_expr then:block_expr ELSE els:block_expr {
+      Expr::If(box cond, box then, box els)
   }
   / bin_expr
 
@@ -76,22 +69,24 @@ bin_expr -> Expr
   }
 
 primary_expr -> Expr
-  = v:literal  { Expr::Literal(v) }
-  / LBRACE e:expr RBRACE { e }
-  / name:identifier { Expr::Var(name) }
+  = LPAREN e:expr RPAREN { e }
+  / block_expr
+  / literal
+  / name:variable_name { Expr::Var(name) }
 
-literal -> Literal
-  = SINGLE_QUOTE c:$(.) SINGLE_QUOTE { Literal::Char(c.chars().nth(0).unwrap()) }
-  / n:number { Literal::Int(n) }
-  / str:string { Literal::String(str) }
-  / NEW name:identifier LBRACE data:(name:identifier COLON e:expr { (name, e) })* RBRACE {
-      Literal::Struct(StructLiteral {
-            name: name,
-            data: data.into_iter().collect()
-          })
+literal -> Expr
+  = n:number { Expr::Int(n) }
+  / name:type_name LBRACE data:(name:variable_name COLON e:expr { (name, e) })* RBRACE {
+      let fields = data.into_iter().collect();
+      Expr::Struct(name, fields)
   }
 
-__ = [ \n\t]*
+block_expr -> Expr
+  = LBRACE es:(e:expr SEMICOLON { e })* last:expr RBRACE {
+      let mut exprs = es;
+      exprs.push(last);
+      Expr::Block(exprs)
+  }
 
 PLUS = "+" __
 MINUS = "-" __
@@ -117,15 +112,24 @@ NEW = keyword<"new">
 PRINTLN = keyword<"println">
 
 number -> i64
-  = n:$([0-9]+) __ { n.parse().unwrap() }
-
-identifier -> String
-  = s:$([a-zA-Z_][a-zA-Z0-9_]*) __ { s.to_string() }
+  = n:$([0-9]+) __ { i64::from_str_radix(n, 10).unwrap() }
 
 string -> String
   = "\"" s:$([^\"]*) "\"" __ { s.to_string() }
 
-spaces = [ \n\t]*
+space = [ \n\t]
+comment = "//" (!eol .)*
+eol = "\n"
+__ = #quiet<(space / eol / comment)*>
 
-line_spaces = [ \t]*
+snake_identifier -> String
+  = #quiet<s:$([a-z_][a-z0-9_]*) __ { s.to_string() }>
+  / #expected("snake-cased identifier")
+
+camel_identifier -> String
+  = #quiet<s:$([A-Z][a-zA-Z0-9]*) __ { s.to_string() }>
+  / #expected("camel-cased identifier")
+
+type_name -> String = camel_identifier
+variable_name -> String = snake_identifier
 

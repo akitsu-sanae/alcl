@@ -52,33 +52,21 @@ fn function(func: &ast::Function) -> kazuma::ast::Function {
     );
     let ret_type = type_(&func.return_type);
     let typ = kazuma::ast::Type::Function(arg_types, box ret_type);
-    let mut exprs = vec![];
-    let (ref stmnts, ref expr) = func.body;
-    for stmnt in stmnts {
-        exprs.append(&mut statement(stmnt));
-    }
-    exprs.push(expression(expr));
+    let body = expression(&func.body);
 
     kazuma::ast::Function {
         name: func.name.clone(),
         arg_names: arg_names,
         typ: typ,
-        body: kazuma::ast::Expression::Block(exprs),
-    }
-}
-
-fn statement(stmt: &ast::Statement) -> Vec<kazuma::ast::Expression> {
-    match *stmt {
-        ast::Statement::Let(ref name, ref init) =>
-            vec![kazuma::ast::Expression::Let(name.clone(), box expression(init))],
-        ast::Statement::Println(_) => panic!("unimplemented println"),
-        ast::Statement::Expression(ref expr) => vec![expression(expr)],
+        body: body,
     }
 }
 
 fn expression(expr: &ast::Expr) -> kazuma::ast::Expression {
     use ast::Expr::*;
     match *expr {
+        Let(ref name, box ref init) => kazuma::ast::Expression::Let(name.clone(), box expression(init)),
+        Block(ref exprs) => kazuma::ast::Expression::Block(exprs.iter().map(expression).collect()),
         Add(box ref lhs, box ref rhs) => {
             let (lhs, rhs) = (expression(lhs), expression(rhs));
             kazuma::ast::Expression::Add(box lhs, box rhs)
@@ -96,20 +84,13 @@ fn expression(expr: &ast::Expr) -> kazuma::ast::Expression {
             kazuma::ast::Expression::Div(box lhs, box rhs)
         },
         If(_, _, _) => panic!("unimplemented: if"),
-        Literal(ref lit) => literal(lit),
         Var(ref name) => kazuma::ast::Expression::Variable(name.clone()),
-    }
-}
-
-fn literal(lit: &ast::Literal) -> kazuma::ast::Expression {
-    use ast::Literal::*;
-    match *lit {
-        Char(_) | String(_) => panic!("unimplemented literal"),
         Int(ref n) => kazuma::ast::Expression::Int(*n),
-        Struct(ref struct_literal) => {
-            let ast::StructLiteral{ref name, ref data} = *struct_literal;
-            let data = data.iter().map(|(name, x)| (name.clone(), expression(x))).collect();
-            kazuma::ast::Expression::Struct(name.clone(), data)
+        Struct(ref name, ref fields) => {
+            kazuma::ast::Expression::Struct(
+                name.clone(),
+                fields.iter().map(|(name, field)| (name.clone(), expression(field))).collect())
         },
     }
 }
+
