@@ -28,6 +28,7 @@ fn type_(ty: &ast::Type) -> kazuma::ast::Type {
     match *ty {
         ast::Type::Char => panic!("unimplemented"),
         ast::Type::Int => kazuma::ast::Type::Int32,
+        ast::Type::Array(box ref ty, ref n) => kazuma::ast::Type::Array(box type_(ty), *n),
         ast::Type::Struct(ref name) => kazuma::ast::Type::Struct(name.clone()),
     }
 }
@@ -86,6 +87,7 @@ fn expression(expr: &ast::Expr) -> kazuma::ast::Expression {
         If(_, _, _) => panic!("unimplemented: if"),
         Var(ref name) => kazuma::ast::Expression::Variable(name.clone()),
         Int(ref n) => kazuma::ast::Expression::Int(*n),
+        Array(ref exprs) => kazuma::ast::Expression::Array(exprs.iter().map(expression).collect()),
         Struct(ref name, ref fields) => {
             kazuma::ast::Expression::Struct(
                 name.clone(),

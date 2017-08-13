@@ -24,7 +24,8 @@ struct_define -> StructType
   }
 
 type_ -> Type
-  = name:type_name {
+  = LBRACKET ty:type_ SEMICOLON n:number RBRACKET { Type::Array(box ty, n) }
+  / name:type_name {
       match name.as_str() {
           "Char" => Type::Char,
           "Int" => Type::Int,
@@ -80,6 +81,11 @@ literal -> Expr
       let fields = data.into_iter().collect();
       Expr::Struct(name, fields)
   }
+  / LBRACKET es:(e:expr COMMA { e })* last:expr RBRACKET {
+      let mut es = es;
+      es.push(last);
+      Expr::Array(es)
+  }
 
 block_expr -> Expr
   = LBRACE es:(e:expr SEMICOLON { e })* last:expr RBRACE {
@@ -97,6 +103,9 @@ LPAREN = "(" __
 RPAREN = ")" __
 LBRACE = "{" __
 RBRACE = "}" __
+LBRACKET = "[" __
+RBRACKET = "]" __
+COMMA = "," __
 COLON = ":" __
 SEMICOLON = ";" __
 SINGLE_QUOTE = "'" __

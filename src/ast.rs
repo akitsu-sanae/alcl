@@ -16,7 +16,8 @@ pub struct StructType {
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Type {
     Char, Int,
-    Struct(String)
+    Struct(String),
+    Array(Box<Type>, i64),
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -45,5 +46,6 @@ pub enum Expr {
     Var(String),
     Int(i64),
     Struct(String, HashMap<String, Expr>),
+    Array(Vec<Expr>),
 }
 
