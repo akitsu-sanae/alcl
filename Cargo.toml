@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["akitsu-sanae <akitsu.sanae@gmail.com>"]
 
 [dependencies]
-peg = "*"
-peg-syntax-ext = "*"
-kazuma = { git = "https://github.com/akitsu-sanae/kazuma" }
+peg = "0.5.1"
+peg-syntax-ext = "0.5.0"
+kazuma = { path = "../kazuma" }
 

@@ -5,21 +5,21 @@
   file LICENSE or copy at http://www.boost.org/LICENSE_1_0.txt)
 ============================================================================*/
 
-use super::ast::*;
+use kazuma::ast::*;
 
-pub program -> Program
+pub program -> Module
   = __ struct_defs:struct_define* funcs:function* {
-      Program {
+      Module {
+        structs: struct_defs,
         functions: funcs,
-        struct_data: struct_defs,
       }
   }
 
-struct_define -> StructType
-  = STRUCT name:type_name LBRACE data:(id:variable_name COLON ty:type_ { (id, ty) })* RBRACE {
-      StructType {
+struct_define -> Struct
+  = STRUCT name:type_name LBRACE fields:(id:variable_name COLON ty:type_ { (id, ty) })* RBRACE {
+      Struct {
         name: name,
-        data: data.into_iter().collect(),
+        fields: fields.into_iter().collect(),
       }
   }
 
@@ -27,71 +27,73 @@ type_ -> Type
   = LBRACKET ty:type_ SEMICOLON n:number RBRACKET { Type::Array(box ty, n) }
   / name:type_name {
       match name.as_str() {
-          "Char" => Type::Char,
-          "Int" => Type::Int,
+          "Unit" => Type::Void,
+          "Bool" => Type::Bool,
+          "Int" => Type::Int32,
           _ => Type::Struct(name)
       }
   }
 
 function -> Function
-  = FUNC name:variable_name params:(name:variable_name COLON ty:type_ { (name, ty) })* COLON ret_ty:type_ body:block_expr {
+  = FUNC name:variable_name args:(name:variable_name COLON ty:type_ { (name, ty) })* COLON ret_ty:type_ body:block_expr {
+      let (arg_names, arg_types) = args.into_iter().fold(
+              (vec![], vec![]), |(mut acc_name, mut acc_ty), (name, ty)| {
+                  acc_name.push(name);
+                  acc_ty.push(ty);
+                  (acc_name, acc_ty)
+              });
+      let ty = Type::Function(arg_types, box ret_ty);
       Function {
-name: name,
-          args: params,
-          return_type: ret_ty,
-          body: body
+        name: name,
+        arg_names: arg_names,
+        typ: ty,
+        body: body,
       }
   }
 
-expr -> Expr
+expr -> Expression
   = let_expr
 
-let_expr -> Expr
+let_expr -> Expression
   = LET name:variable_name EQUAL init:inline_expr {
-    Expr::Let(name, box init)
+      Expression::Let(name, box init)
   }
   /inline_expr
 
-inline_expr -> Expr
-  = if_expr
+inline_expr -> Expression
+  = bin_expr
 
-if_expr -> Expr
-  = IF cond:bin_expr then:block_expr ELSE els:block_expr {
-      Expr::If(box cond, box then, box els)
-  }
-  / bin_expr
-
-bin_expr -> Expr
+bin_expr -> Expression
   = #infix<primary_expr> {
-    #L l PLUS r { Expr::Add(box l, box r) }
-       l MINUS r { Expr::Sub(box l, box r) }
-    #L l STAR r { Expr::Mult(box l, box r) }
-       l SLASH r { Expr::Div(box l, box r) }
+    #L l PLUS r { Expression::Add(box l, box r) }
+       l MINUS r { Expression::Sub(box l, box r) }
+    #L l STAR r { Expression::Mult(box l, box r) }
+       l SLASH r { Expression::Div(box l, box r) }
   }
 
-primary_expr -> Expr
+primary_expr -> Expression
   = LPAREN e:expr RPAREN { e }
   / block_expr
   / literal
-  / name:variable_name { Expr::Var(name) }
+  / name:variable_name { Expression::Variable(name) }
 
-literal -> Expr
-  = n:number { Expr::Int(n) }
+literal -> Expression
+  = n:number { Expression::Int(n) }
   / name:type_name LBRACE data:(name:variable_name COLON e:expr { (name, e) })* RBRACE {
       let fields = data.into_iter().collect();
-      Expr::Struct(name, fields)
+      Expression::Struct(name, fields)
   }
   / LBRACKET es:(e:expr COMMA { e })* last:expr RBRACKET {
       let mut es = es;
       es.push(last);
-      Expr::Array(es)
+      Expression::Array(es)
   }
 
-block_expr -> Expr
+block_expr -> Expression
   = LBRACE es:(e:expr SEMICOLON { e })* last:expr RBRACE {
       let mut exprs = es;
       exprs.push(last);
-      Expr::Block(exprs)
+      Expression::Block(exprs)
   }
 
 PLUS = "+" __

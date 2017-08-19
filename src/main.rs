@@ -11,9 +11,6 @@
 #![feature(box_syntax)]
 #![feature(box_patterns)]
 
-mod ast;
-mod codegen;
-
 extern crate kazuma;
 
 peg_file! parse("grammar.rustpeg");
@@ -24,8 +21,12 @@ fn main() {
     let mut f = std::fs::File::open(filename).expect("not found: inputed filename");
     let mut input = String::new();
     f.read_to_string(&mut input).expect("can not read input file");
-    let ast = parse::program(input.as_str()).unwrap();
-    codegen::code_generate(&ast);
+    let module = parse::program(input.as_str()).unwrap();
+    let mut builder = kazuma::builder::Builder::new("test");
+    match builder.build(&module) {
+        Ok(result) => println!("{}", result),
+        Err(err) => println!("error: {}", err),
+    }
 }
 
 
